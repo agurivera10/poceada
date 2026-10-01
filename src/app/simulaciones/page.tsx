@@ -44,9 +44,9 @@ export default async function SimulacionesPage() {
     supabase.from("simulation_lab_status").select("*").maybeSingle(),
     supabase.from("simulation_compute_status").select("*").maybeSingle(),
     supabase.from("simulation_presets").select("slug,name,category,description,engine_version,default_iterations,max_recommended_iterations,default_config").eq("active", true).order("name"),
-    supabase.from("simulation_experiments").select("id,slug,name,category,status,requested_iterations,shard_count,experiment_sha256,created_at,completed_at").order("created_at", { ascending: false }).limit(24),
+    supabase.from("simulation_experiments").select("id,slug,name,category,status,requested_iterations,shard_count,experiment_sha256,created_at,completed_at").neq("status", "ABORTED").order("created_at", { ascending: false }).limit(24),
     supabase.from("shadow_batches").select("id,target_draw_number,shadow_count,generator_version,geometry_template,batch_sha256,frozen_at").order("target_draw_number", { ascending: false }).limit(3),
-    supabase.from("simulation_jobs").select("id,simulation_experiment_id,preset_slug,status,priority,requested_iterations,progress_iterations,seed_base,current_phase,worker_id,attempt,cancel_requested,result_sha256,error_message,created_at,started_at,completed_at").order("created_at", { ascending: false }).limit(40),
+    supabase.from("simulation_jobs").select("id,simulation_experiment_id,preset_slug,status,priority,requested_iterations,progress_iterations,seed_base,current_phase,worker_id,attempt,cancel_requested,result_sha256,error_message,created_at,started_at,completed_at").neq("status", "CANCELLED").order("created_at", { ascending: false }).limit(40),
     supabase.from("simulation_workers").select("id,display_name,worker_version,engine_version,status,cpu_count,current_job_id,last_seen_at,completed_jobs,failed_jobs").order("last_seen_at", { ascending: false }).limit(12),
     isLabAdmin(),
   ]);
@@ -62,7 +62,11 @@ export default async function SimulacionesPage() {
   const jobs = jobsRes.data ?? [];
   const workers = workersRes.data ?? [];
 
-  const latestDecisionExperiment = experiments.find((row) => row.status === "COMPLETED" && row.category === "PORTFOLIO_GEOMETRY");
+  const geometryExperiments = experiments
+    .filter((row) => row.status === "COMPLETED" && row.category === "PORTFOLIO_GEOMETRY")
+    .sort((a, b) => Number(b.requested_iterations) - Number(a.requested_iterations) || +new Date(b.completed_at ?? b.created_at) - +new Date(a.completed_at ?? a.created_at));
+  const latestDecisionExperiment = geometryExperiments[0];
+
   let decisionMetrics: Array<{ metric_name: string; metric_value: number | null }> = [];
   if (latestDecisionExperiment) {
     const metricsRes = await supabase
@@ -75,7 +79,7 @@ export default async function SimulacionesPage() {
     decisionMetrics = metricsRes.data ?? [];
   }
 
-  const totalIterations = Number(status.completed_iterations) + Number(compute.processed_iterations);
+  const totalIterations = Number(status.completed_iterations);
   const precisionNext = latestDecisionExperiment && Number(latestDecisionExperiment.requested_iterations) < 10_000_000;
 
   return (
@@ -89,17 +93,17 @@ export default async function SimulacionesPage() {
           </div>
           <div className="hero-note decision-status">
             <strong>Estado del laboratorio</strong>
-            <div className="decision-status-line"><span>Compute Python</span><b>{compute.online_workers > 0 ? "OPERATIVO" : "SIN WORKER"}</b></div>
-            <div className="decision-status-line"><span>Última evidencia</span><b>{latestDecisionExperiment ? compact(latestDecisionExperiment.requested_iterations) : "—"}</b></div>
+            <div className="decision-status-line"><span>Compute Python</span><b>{compute.active_jobs > 0 ? "EJECUTANDO" : "ON‑DEMAND"}</b></div>
+            <div className="decision-status-line"><span>Evidencia usada</span><b>{latestDecisionExperiment ? compact(latestDecisionExperiment.requested_iterations) : "—"}</b></div>
             <div className="decision-status-line"><span>Presupuesto base</span><b>6 tickets · $12.000</b></div>
           </div>
         </section>
 
         <section className="grid-kpi">
           <div className="card kpi"><div className="kpi-label">Cartera comparable</div><div className="kpi-value" style={{ fontSize: 25 }}>6 tickets</div><div className="kpi-sub">$12.000 al precio actual</div></div>
-          <div className="card kpi"><div className="kpi-label">Experimentos</div><div className="kpi-value">{status.experiments}</div><div className="kpi-sub">{status.completed_experiments} completados</div></div>
-          <div className="card kpi"><div className="kpi-label">Universos simulados</div><div className="kpi-value">{compact(totalIterations)}</div><div className="kpi-sub">acumulados</div></div>
-          <div className="card kpi"><div className="kpi-label">Compute</div><div className="kpi-value">{compute.online_workers}</div><div className="kpi-sub">workers online · {compute.active_jobs} activos</div></div>
+          <div className="card kpi"><div className="kpi-label">Experimentos útiles</div><div className="kpi-value">{status.completed_experiments}</div><div className="kpi-sub">corridas completadas</div></div>
+          <div className="card kpi"><div className="kpi-label">Universos simulados</div><div className="kpi-value">{compact(totalIterations)}</div><div className="kpi-sub">completados</div></div>
+          <div className="card kpi"><div className="kpi-label">Compute</div><div className="kpi-value" style={{ fontSize: 23 }}>ON‑DEMAND</div><div className="kpi-sub">{compute.active_jobs} activos · {compute.queued_jobs} en cola</div></div>
           <div className="card kpi"><div className="kpi-label">Controles</div><div className="kpi-value">{compact(status.materialized_shadows)}</div><div className="kpi-sub">shadows prospectivos</div></div>
         </section>
 
@@ -122,7 +126,7 @@ export default async function SimulacionesPage() {
           <div className="decision-next-grid">
             <div className="card decision-next-card primary">
               <span>01</span><strong>{precisionNext ? "Subir precisión de geometría" : "Geometría con buena escala"}</strong>
-              <p>{precisionNext ? "La corrida actual es diagnóstica. El próximo salto útil es 10M para estabilizar 4+ y comparar carteras sin sobreleer ruido de Monte Carlo." : "Ya hay escala suficiente para usar 2+/3+/4+ como base de diseño. El siguiente cuello de botella pasa a selección y economía."}</p>
+              <p>{precisionNext ? "La corrida actual es diagnóstica. El próximo salto útil es 10M para estabilizar 4+ y comparar carteras sin sobreleer ruido de Monte Carlo." : "Ya tenemos al menos 10M para la comparación geométrica. El siguiente cuello de botella pasa a optimización por objetivo, selección y economía."}</p>
             </div>
             <div className="card decision-next-card"><span>02</span><strong>Optimizar para un objetivo</strong><p>En vez de buscar “la mejor cartera” en abstracto, elegir una función: P(2+), P(3+), P(4+), múltiples premios o una combinación ponderada.</p></div>
             <div className="card decision-next-card"><span>03</span><strong>Agregar economía real</strong><p>Cuando tengamos payouts oficiales completos de 2/3/4/5, comparar frecuencia de cobro con retorno esperado, recuperación de costo y drawdown.</p></div>
