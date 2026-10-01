@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -28,6 +28,16 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://oxjjmozpjbnawewdyuso.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_sLZPLOcYOBQgns1HO1LMZw_a32mK_5b
+      - name: Persist lockfile
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: add npm lockfile"
+            git push
+          fi
       - name: Upload lockfile
         if: always()
         uses: actions/upload-artifact@v4
