@@ -10,14 +10,14 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -34,13 +34,29 @@ jobs:
         run: |
           python simulations/run_simulation.py --preset portfolio-null-geometry-v1 --iterations 2000 --seed 123456 --output /tmp/portfolio.json
           python simulations/run_simulation.py --preset selection-shadow-v1 --iterations 1000 --seed 654321 --output /tmp/shadow.json
+          python -m py_compile simulations/worker.py simulations/worker_client.py simulations/optimizer.py
           python - <<'PY'
           import json
+          from simulations.optimizer import optimize_portfolio
           for path, n in [('/tmp/portfolio.json', 2000),('/tmp/shadow.json',1000)]:
               d=json.load(open(path))
               assert d['iterations']==n
+              assert d['engine_version']=='SIM_ENGINE_V2'
               assert len(d['result_sha256'])==64
-          print('simulation smoke tests OK')
+              for family, events in d.get('event_counts', {}).items():
+                  for tier in range(2,6):
+                      assert f'at_least_{tier}' in events
+                      assert f'max_exactly_{tier}' in events
+                  sums=d['ticket_sums'][family]
+                  for tier in range(2,6):
+                      assert f'exactly_{tier}' in sums
+                      assert f'at_least_{tier}' in sums
+          opt=optimize_portfolio(iterations=2000, seed=42)
+          assert opt['score']['unique_4_subsets']==30
+          assert opt['score']['max_pair_overlap']<=1
+          assert 0 < opt['exact']['event_probabilities']['at_least_4'] < 0.01
+          assert len(opt['result_sha256'])==64
+          print('simulation V2 + optimizer + worker smoke tests OK')
           PY
       - name: Typecheck
         run: npm run typecheck
@@ -61,7 +77,7 @@ jobs:
           fi
       - name: Upload lockfile
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: package-lock
           path: package-lock.json
