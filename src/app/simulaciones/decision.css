@@ -56,10 +56,45 @@
 .purpose-card > strong { display: block; font-size: 12px; line-height: 1.45; }
 .purpose-card p { color: var(--muted); font-size: 10px; line-height: 1.5; min-height: 45px; }
 
+.launch-section { margin-top: 40px; }
+.launch-card { padding: 0; overflow: hidden; }
+.launch-topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: rgba(7,10,15,.25); }
+.compute-pill { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.compute-pill > span:last-child { color: var(--muted); margin-left: 4px; }
+.compute-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 3px rgba(244,201,93,.08); }
+.compute-dot.online { background: var(--green); box-shadow: 0 0 0 3px rgba(98,211,148,.08); }
+.admin-inline { display: grid; grid-template-columns: minmax(140px,220px) auto; gap: 7px; }
+.launch-steps { display: grid; grid-template-columns: 1fr 1.45fr 1fr; }
+.launch-step { display: grid; grid-template-columns: 34px 1fr; gap: 10px; padding: 20px; border-right: 1px solid var(--line); }
+.launch-step:last-child { border-right: 0; }
+.step-number { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(98,211,148,.08); border: 1px solid rgba(98,211,148,.22); color: var(--green); font-size: 11px; font-weight: 900; }
+.step-body { min-width: 0; }
+.step-body > label { display: block; font-size: 12px; font-weight: 800; margin-bottom: 9px; }
+.step-body p { color: var(--muted); font-size: 10px; line-height: 1.5; margin: 10px 0 0; }
+.step-body p strong { color: var(--text); }
+.scale-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 6px; }
+.scale-choice { border: 1px solid var(--line); background: #0b121b; color: var(--text); border-radius: 9px; padding: 9px 7px; cursor: pointer; min-width: 0; }
+.scale-choice strong { display: block; font-size: 12px; }
+.scale-choice span { display: block; color: var(--muted); font-size: 8px; margin-top: 3px; line-height: 1.25; }
+.scale-choice.selected { border-color: rgba(98,211,148,.55); background: rgba(98,211,148,.08); box-shadow: inset 0 0 0 1px rgba(98,211,148,.08); }
+.scale-choice.selected strong { color: var(--green); }
+.scale-help { color: var(--muted); font-size: 9px; margin-top: 9px; line-height: 1.45; }
+.scale-help strong { color: var(--text); }
+.launch-button { width: 100%; margin-top: 10px; border: 1px solid rgba(98,211,148,.45); background: rgba(98,211,148,.1); color: var(--green); border-radius: 10px; padding: 12px 14px; font-weight: 800; cursor: pointer; }
+.launch-button:disabled { cursor: not-allowed; border-color: var(--line); color: var(--muted); background: #0d1621; }
+.launch-message { margin-top: 9px; color: var(--green); font-size: 10px; line-height: 1.4; }
+.advanced-box { border-top: 1px solid var(--line); padding: 12px 18px 16px; background: rgba(7,10,15,.2); }
+.advanced-box > summary { cursor: pointer; color: var(--muted); font-size: 10px; }
+.advanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.advanced-grid label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
+
 @media (max-width: 1000px) {
   .decision-objectives { grid-template-columns: repeat(2, 1fr); }
   .experiment-purpose-grid { grid-template-columns: repeat(2, 1fr); }
   .decision-next-grid { grid-template-columns: 1fr; }
+  .launch-steps { grid-template-columns: 1fr; }
+  .launch-step { border-right: 0; border-bottom: 1px solid var(--line); }
+  .launch-step:last-child { border-bottom: 0; }
 }
 
 @media (max-width: 760px) {
@@ -68,10 +103,14 @@
   .decision-context > div:last-child { border-bottom: 0; }
   .strategy-row { grid-template-columns: 1fr; gap: 10px; }
   .decision-comparison-head { align-items: flex-start; flex-direction: column; }
+  .launch-topbar { align-items: stretch; flex-direction: column; }
+  .admin-inline { grid-template-columns: 1fr auto; }
 }
 
 @media (max-width: 560px) {
   .decision-objectives, .experiment-purpose-grid { grid-template-columns: 1fr; }
   .strategy-metrics { grid-template-columns: repeat(2,1fr); }
   .decision-card { min-height: 0; }
+  .scale-grid { grid-template-columns: repeat(2,1fr); }
+  .advanced-grid { grid-template-columns: 1fr; }
 }
