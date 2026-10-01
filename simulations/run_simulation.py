@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-ENGINE_VERSION = "SIM_ENGINE_V1"
+ENGINE_VERSION = "SIM_ENGINE_V2"
 UNIVERSE = 100
 DRAW_SIZE = 10
 
@@ -57,37 +57,62 @@ def eval_portfolio(presence: np.ndarray, tickets: np.ndarray) -> tuple[np.ndarra
     return hits, hits.max(axis=1)
 
 
+def update_portfolio_metrics(
+    event_counts: dict[str, Counter],
+    ticket_sums: dict[str, Counter],
+    histograms: dict[str, Counter],
+    name: str,
+    hits: np.ndarray,
+    max_hits: np.ndarray,
+) -> None:
+    # Event probabilities answer: "did this happen at least once in the portfolio?"
+    # Ticket expectations answer: "how many tickets per draw, on average, land in this tier?"
+    for tier in range(2, 6):
+        exact_per_draw = (hits == tier).sum(axis=1)
+        plus_per_draw = (hits >= tier).sum(axis=1)
+
+        event_counts[name][f"at_least_{tier}"] += int(np.count_nonzero(max_hits >= tier))
+        event_counts[name][f"max_exactly_{tier}"] += int(np.count_nonzero(max_hits == tier))
+        event_counts[name][f"multiple_{tier}plus"] += int(np.count_nonzero(plus_per_draw >= 2))
+
+        ticket_sums[name][f"exactly_{tier}"] += int(exact_per_draw.sum())
+        ticket_sums[name][f"at_least_{tier}"] += int(plus_per_draw.sum())
+
+        hist_update(histograms[f"{name}.tickets_exactly_{tier}"], exact_per_draw)
+        hist_update(histograms[f"{name}.tickets_{tier}plus"], plus_per_draw)
+
+    hist_update(histograms[f"{name}.max_hits"], max_hits)
+
+
 def simulate_portfolio_geometry(rng: np.random.Generator, iterations: int, batch_size: int) -> dict:
     portfolios = {
         "k6_edge_15": K6_EDGE_15,
         "wheel_6": WHEEL_6,
         "disjoint_6": DISJOINT_6,
     }
-    counters = defaultdict(Counter)
-    histograms = defaultdict(Counter)
+    event_counts: dict[str, Counter] = defaultdict(Counter)
+    ticket_sums: dict[str, Counter] = defaultdict(Counter)
+    histograms: dict[str, Counter] = defaultdict(Counter)
     done = 0
     while done < iterations:
         n = min(batch_size, iterations - done)
         presence = draws_to_presence(generate_draws(rng, n))
         for name, tickets in portfolios.items():
             hits, max_hits = eval_portfolio(presence, tickets)
-            counters[name]["at_least_3"] += int(np.count_nonzero(max_hits >= 3))
-            counters[name]["at_least_4"] += int(np.count_nonzero(max_hits >= 4))
-            counters[name]["at_least_5"] += int(np.count_nonzero(max_hits >= 5))
-            counters[name]["multiple_4plus"] += int(np.count_nonzero((hits >= 4).sum(axis=1) >= 2))
-            counters[name]["tickets_4plus"] += int(np.count_nonzero(hits >= 4))
-            hist_update(histograms[f"{name}.max_hits"], max_hits)
+            update_portfolio_metrics(event_counts, ticket_sums, histograms, name, hits, max_hits)
         done += n
     return {
-        "counters": {k: dict(v) for k, v in counters.items()},
+        "event_counts": {k: dict(v) for k, v in event_counts.items()},
+        "ticket_sums": {k: dict(v) for k, v in ticket_sums.items()},
         "histograms": {k: dict(v) for k, v in histograms.items()},
     }
 
 
 def simulate_selection_shadow(rng: np.random.Generator, iterations: int, batch_size: int) -> dict:
     pool_hist = Counter()
-    max_hist = Counter()
-    counters = Counter()
+    event_counts: dict[str, Counter] = defaultdict(Counter)
+    ticket_sums: dict[str, Counter] = defaultdict(Counter)
+    histograms: dict[str, Counter] = defaultdict(Counter)
     done = 0
     while done < iterations:
         n = min(batch_size, iterations - done)
@@ -101,18 +126,22 @@ def simulate_selection_shadow(rng: np.random.Generator, iterations: int, batch_s
         ticket_rows = np.arange(n)[:, None, None]
         ticket_hits = draw_presence[ticket_rows, ticket_numbers].sum(axis=2)
         max_hits = ticket_hits.max(axis=1)
+
         hist_update(pool_hist, pool_hits)
-        hist_update(max_hist, max_hits)
-        counters["at_least_3"] += int(np.count_nonzero(max_hits >= 3))
-        counters["at_least_4"] += int(np.count_nonzero(max_hits >= 4))
-        counters["at_least_5"] += int(np.count_nonzero(max_hits >= 5))
+        update_portfolio_metrics(
+            event_counts,
+            ticket_sums,
+            histograms,
+            "selection_shadow",
+            ticket_hits,
+            max_hits,
+        )
         done += n
+    histograms["selection_shadow.pool_hits"] = pool_hist
     return {
-        "counters": {"selection_shadow": dict(counters)},
-        "histograms": {
-            "selection_shadow.pool_hits": dict(pool_hist),
-            "selection_shadow.max_hits": dict(max_hist),
-        },
+        "event_counts": {k: dict(v) for k, v in event_counts.items()},
+        "ticket_sums": {k: dict(v) for k, v in ticket_sums.items()},
+        "histograms": {k: dict(v) for k, v in histograms.items()},
     }
 
 
@@ -147,7 +176,8 @@ def simulate_null_seasons(rng: np.random.Generator, seasons: int, batch_seasons:
         done += b
 
     return {
-        "counters": {},
+        "event_counts": {},
+        "ticket_sums": {},
         "histograms": {
             "null_season.max_frequency": dict(h_freq),
             "null_season.max_delay": dict(h_delay),
@@ -197,7 +227,7 @@ def simulate_multiple_testing(rng: np.random.Generator, seasons: int, batch_seas
 
     histograms = {f"redteam.{k}.top20_hits": dict(v) for k, v in model_hists.items()}
     histograms["redteam.best_of_5.top20_hits"] = dict(best_hist)
-    return {"counters": {}, "histograms": histograms}
+    return {"event_counts": {}, "ticket_sums": {}, "histograms": histograms}
 
 
 def shard_iterations(total: int, shard_index: int, shard_count: int) -> int:
