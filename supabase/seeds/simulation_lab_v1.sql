@@ -30,9 +30,11 @@ set frozen_at=now()
 where ep.frozen_at is null
   and ep.experiment_id in (select id from public.experiments where slug in ('prospectivo-probability-v1','prospectivo-selection-v1'));
 
--- Materialize the 1,000 draw-317 controls from the preregistered rule when the batch exists.
--- This must run before shadow_portfolio_guard is active on a fresh reconstruction,
--- or be inserted in the same trusted bootstrap transaction.
+-- Trusted reconstruction step: the batch itself is already frozen by the
+-- prospectivo seed, so temporarily disable the child immutability trigger,
+-- deterministically materialize the 1,000 controls, then re-enable it.
+alter table public.shadow_portfolios disable trigger shadow_portfolio_guard;
+
 with batch as (
   select * from public.shadow_batches where target_draw_number=317 order by created_at desc limit 1
 ), seeds as (
@@ -62,3 +64,5 @@ select batch_id,shadow_index,seed,pool,tickets,
        internal.sha256_hex(batch_id::text||'|'||shadow_index::text||'|'||seed::text||'|'||pool::text||'|'||tickets::text)
 from shaped
 on conflict (batch_id,shadow_index) do nothing;
+
+alter table public.shadow_portfolios enable trigger shadow_portfolio_guard;
