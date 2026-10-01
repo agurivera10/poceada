@@ -53,6 +53,14 @@ class SupabaseWorkerClient:
         result = self._request("POST", "/rpc/claim_simulation_job", {"p_worker_id": worker_id, "p_lease_seconds": lease_seconds})
         return self._one(result)
 
+    def claim_by_id(self, job_id: str, worker_id: str, lease_seconds: int = 300) -> dict | None:
+        result = self._request("POST", "/rpc/claim_simulation_job_by_id", {
+            "p_job_id": job_id,
+            "p_worker_id": worker_id,
+            "p_lease_seconds": lease_seconds,
+        })
+        return self._one(result)
+
     def heartbeat(self, job_id: str, worker_id: str, progress_iterations: int, phase: str, lease_seconds: int = 120, partial_summary: dict | None = None) -> dict:
         result = self._request("POST", "/rpc/heartbeat_simulation_job", {
             "p_job_id": job_id,
