@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isLabAdmin } from "@/lib/lab-auth";
 import { dispatchSimulationJob } from "@/lib/render-workflow";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { createPublicClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -11,7 +11,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   }
   try {
     const { id } = await context.params;
-    const supabase = createAdminClient();
+    const supabase = createPublicClient();
     const { data: job, error } = await supabase
       .from("simulation_jobs")
       .select("id,status,dispatch_ref,execution_backend")
