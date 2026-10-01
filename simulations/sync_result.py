@@ -63,6 +63,7 @@ def main() -> None:
             "github_run_id": args.github_run_id,
             "result_sha256": result["result_sha256"],
             "source": "github_actions",
+            "metric_semantics": "probabilities are event probabilities; expected_tickets are mean ticket counts per draw",
         },
         "requested_iterations": result["iterations"],
         "seed_base": args.seed_base,
@@ -88,7 +89,10 @@ def main() -> None:
             "seed_start": shard["seed"],
             "status": "COMPLETED",
             "runtime_ms": round(float(shard["runtime_seconds"]) * 1000),
-            "summary": {"counters": shard.get("counters", {})},
+            "summary": {
+                "event_counts": shard.get("event_counts", {}),
+                "ticket_sums": shard.get("ticket_sums", {}),
+            },
             "result_sha256": shard["result_sha256"],
             "started_at": now,
             "completed_at": now,
@@ -101,9 +105,17 @@ def main() -> None:
         for metric, value in values.items():
             metric_rows.append({
                 "simulation_experiment_id": experiment_id,
-                "metric_name": f"{family}.{metric}",
+                "metric_name": f"{family}.probability.{metric}",
                 "metric_value": value,
-                "details": {"iterations": result["iterations"]},
+                "details": {"iterations": result["iterations"], "semantics": "event_probability"},
+            })
+    for family, values in result.get("expected_tickets", {}).items():
+        for metric, value in values.items():
+            metric_rows.append({
+                "simulation_experiment_id": experiment_id,
+                "metric_name": f"{family}.expected_tickets.{metric}",
+                "metric_value": value,
+                "details": {"iterations": result["iterations"], "semantics": "mean_ticket_count_per_draw"},
             })
     if metric_rows:
         request("POST", f"{base}/simulation_metrics", key, metric_rows, "return=minimal")
