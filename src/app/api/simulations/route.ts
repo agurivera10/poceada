@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isLabAdmin } from "@/lib/lab-auth";
+import { dispatchSimulationJob } from "@/lib/render-workflow";
 import { createAdminClient } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -46,7 +47,12 @@ export async function POST(request: Request) {
       p_priority: priority,
     });
     if (error) throw error;
-    return NextResponse.json({ ok: true, job: data });
+
+    const job = Array.isArray(data) ? data[0] : data;
+    if (!job?.id) throw new Error("La cola creó el experimento pero no devolvió un job válido.");
+
+    const dispatch = await dispatchSimulationJob(job.id);
+    return NextResponse.json({ ok: true, job, dispatch });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "No se pudo crear la simulación." }, { status: 400 });
   }
