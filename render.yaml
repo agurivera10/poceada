@@ -1,0 +1,22 @@
+services:
+  - type: worker
+    name: poceada-compute
+    runtime: docker
+    repo: https://github.com/agurivera10/poceada.git
+    branch: main
+    dockerfilePath: ./simulations/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    numInstances: 1
+    maxShutdownDelaySeconds: 300
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: WORKER_ID
+        value: poceada-render-worker-01
+      - key: WORKER_NAME
+        value: POCEADA Render Compute
+      - key: WORKER_POLL_SECONDS
+        value: "2"
