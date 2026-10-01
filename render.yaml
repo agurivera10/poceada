@@ -21,26 +21,21 @@ services:
         sync: false
       - key: LAB_SESSION_SECRET
         generateValue: true
+      - key: RENDER_API_KEY
+        sync: false
+      - key: RENDER_WORKFLOW_TASK
+        value: poceada-compute/process_job
 
-  - type: worker
+  - type: workflow
     name: poceada-compute
-    runtime: docker
-    repo: https://github.com/agurivera10/poceada.git
-    branch: main
-    plan: 0.5c-512mb
-    dockerfilePath: ./simulations/Dockerfile
-    dockerContext: .
+    slug: poceada-compute
+    runtime: python
+    region: oregon
+    buildCommand: pip install -r simulations/requirements.txt
+    startCommand: python -m simulations.render_workflow
     autoDeployTrigger: checksPass
-    numInstances: 1
-    maxShutdownDelaySeconds: 300
     envVars:
       - key: SUPABASE_URL
         value: https://oxjjmozpjbnawewdyuso.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: WORKER_ID
-        value: poceada-render-worker-01
-      - key: WORKER_NAME
-        value: POCEADA Render Compute
-      - key: WORKER_POLL_SECONDS
-        value: "2"
