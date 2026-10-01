@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { isLabAdmin } from "@/lib/lab-auth";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { cancelRenderTaskRun } from "@/lib/render-workflow";
+import { simulationGateway } from "@/lib/simulation-gateway";
+import { createPublicClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -10,10 +12,21 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   }
   try {
     const { id } = await context.params;
-    const supabase = createAdminClient();
-    const { data, error } = await supabase.rpc("request_cancel_simulation_job", { p_job_id: id });
-    if (error) throw error;
-    return NextResponse.json({ ok: true, job: data });
+    const supabase = createPublicClient();
+    const { data: current, error: readError } = await supabase
+      .from("simulation_jobs")
+      .select("id,status,execution_backend,dispatch_ref")
+      .eq("id", id)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!current) throw new Error("Job inexistente.");
+
+    const data = await simulationGateway("cancel_job", { job_id: id });
+    let remoteCancel: unknown = null;
+    if (current.execution_backend === "RENDER_WORKFLOW" && current.dispatch_ref) {
+      remoteCancel = await cancelRenderTaskRun(current.dispatch_ref);
+    }
+    return NextResponse.json({ ok: true, job: data, remoteCancel });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "No se pudo cancelar." }, { status: 400 });
   }

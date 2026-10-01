@@ -2,7 +2,7 @@ import { randomInt } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isLabAdmin } from "@/lib/lab-auth";
 import { dispatchSimulationJob } from "@/lib/render-workflow";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { simulationGateway } from "@/lib/simulation-gateway";
 
 export const runtime = "nodejs";
 
@@ -36,8 +36,7 @@ export async function POST(request: Request) {
     const config = body?.config && typeof body.config === "object" && !Array.isArray(body.config) ? body.config : {};
     if (!preset) throw new Error("Elegí un preset.");
 
-    const supabase = createAdminClient();
-    const { data, error } = await supabase.rpc("create_simulation_job", {
+    const data = await simulationGateway<unknown[]>("create_job", {
       p_name: name,
       p_preset_slug: preset,
       p_requested_iterations: iterations,
@@ -46,12 +45,12 @@ export async function POST(request: Request) {
       p_git_commit_sha: gitSha(),
       p_priority: priority,
     });
-    if (error) throw error;
-
     const job = Array.isArray(data) ? data[0] : data;
-    if (!job?.id) throw new Error("La cola creó el experimento pero no devolvió un job válido.");
+    if (!job || typeof job !== "object" || !("id" in job)) {
+      throw new Error("La cola creó el experimento pero no devolvió un job válido.");
+    }
 
-    const dispatch = await dispatchSimulationJob(job.id);
+    const dispatch = await dispatchSimulationJob(String((job as { id: string }).id));
     return NextResponse.json({ ok: true, job, dispatch });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "No se pudo crear la simulación." }, { status: 400 });

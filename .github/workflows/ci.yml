@@ -34,7 +34,7 @@ jobs:
         run: |
           python simulations/run_simulation.py --preset portfolio-null-geometry-v1 --iterations 2000 --seed 123456 --output /tmp/portfolio.json
           python simulations/run_simulation.py --preset selection-shadow-v1 --iterations 1000 --seed 654321 --output /tmp/shadow.json
-          python -m py_compile simulations/worker.py simulations/worker_client.py simulations/optimizer.py simulations/render_workflow.py
+          python -m py_compile simulations/worker.py simulations/worker_client.py simulations/optimizer.py simulations/render_workflow.py simulations/http_worker.py
           python - <<'PY'
           import json
           import simulations.render_workflow as render_workflow
@@ -58,7 +58,7 @@ jobs:
           assert 0 < opt['exact']['event_probabilities']['at_least_4'] < 0.01
           assert len(opt['result_sha256'])==64
           assert render_workflow.WORKFLOW_VERSION=='RENDER_WORKFLOW_V1'
-          print('simulation V2 + optimizer + worker + Render Workflow smoke tests OK')
+          print('simulation V2 + optimizer + worker + Render Workflow + HTTP compute smoke tests OK')
           PY
       - name: Typecheck
         run: npm run typecheck
