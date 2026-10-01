@@ -105,7 +105,8 @@ const presetOrder = [
 
 const scales = [
   { value: 100_000, label: "100K", note: "Prueba rápida" },
-  { value: 1_000_000, label: "1M", note: "Diagnóstico" },
+  { value: 250_000, label: "250K", note: "Intermedia" },
+  { value: 1_000_000, label: "1M", note: "Diagnóstico serio" },
   { value: 10_000_000, label: "10M", note: "Alta confianza" },
   { value: 100_000_000, label: "100M", note: "Muy alta precisión" },
   { value: 1_000_000_000, label: "1B", note: "Extrema" },
@@ -162,6 +163,19 @@ function humanStatus(status: string) {
   return labels[status] ?? status;
 }
 
+function humanPhase(phase: string | null) {
+  const labels: Record<string, string> = {
+    claim: "Preparando worker",
+    resume_claim: "Recuperando worker",
+    resume: "Retomando checkpoint guardado",
+    simulate: "Simulando y guardando checkpoints",
+    checkpoint_wait: "Checkpoint guardado · esperando siguiente segmento",
+    optimize: "Optimizando cartera",
+    cancelling: "Cerrando de forma segura",
+  };
+  return phase ? (labels[phase] ?? phase) : "Esperando inicio";
+}
+
 function recommendedScale(slug: string) {
   if (slug === "portfolio-null-geometry-v1") return "10M es el punto de partida recomendado para comparar 4+ con estabilidad.";
   if (slug === "selection-shadow-v1") return "1M sirve para diagnóstico; 10M si querés percentiles más estables.";
@@ -199,6 +213,8 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
   const [message, setMessage] = useState<string | null>(null);
   const selectedPreset = presets.find((p) => p.slug === presetSlug);
   const selectedGuide = guides[presetSlug];
+  const maxRecommended = Number(selectedPreset?.max_recommended_iterations ?? 1_000_000_000);
+  const availableScales = scales.filter((scale) => scale.value <= maxRecommended);
 
   useEffect(() => {
     const jobsChannel = supabase
@@ -287,7 +303,11 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "No se pudo crear la simulación");
-      setMessage(`Simulación ${body.job?.id?.slice(0, 8) ?? ""} enviada al compute.`);
+      if (body.dispatch && body.dispatch.ok === false) {
+        setMessage(`Simulación ${body.job?.id?.slice(0, 8) ?? ""} creada y guardada. Quedó en cola; podés usar Retomar si el compute no despierta solo.`);
+      } else {
+        setMessage(`Simulación ${body.job?.id?.slice(0, 8) ?? ""} enviada al compute.`);
+      }
       setSeed(String(Number(seed) + 1));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo crear la simulación.");
@@ -311,7 +331,23 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
     }
   }
 
+  async function dispatchJob(id: string) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/simulations/${id}/dispatch`, { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || body.dispatch?.error || "No se pudo retomar");
+      setMessage(`Job ${id.slice(0, 8)} retomado desde el último checkpoint.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo retomar la simulación.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const activeJobs = jobs.filter((job) => ["QUEUED", "CLAIMED", "RUNNING", "CANCELLING"].includes(job.status));
+  const liveJob = activeJobs.find((job) => ["RUNNING", "CLAIMED"].includes(job.status)) ?? activeJobs[0];
 
   return (
     <section className="section launch-section">
@@ -366,13 +402,13 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
             <div className="step-body">
               <label>¿Cuánta precisión?</label>
               <div className="scale-grid">
-                {scales.map((scale) => (
+                {availableScales.map((scale) => (
                   <button key={scale.value} type="button" className={Number(iterations) === scale.value ? "scale-choice selected" : "scale-choice"} onClick={() => setIterations(String(scale.value))}>
                     <strong>{scale.label}</strong><span>{scale.note}</span>
                   </button>
                 ))}
               </div>
-              <div className="scale-help">Seleccionado: <strong>{new Intl.NumberFormat("es-AR").format(Number(iterations || 0))}</strong> universos. {recommendedScale(presetSlug)}</div>
+              <div className="scale-help">Seleccionado: <strong>{new Intl.NumberFormat("es-AR").format(Number(iterations || 0))}</strong> universos. {recommendedScale(presetSlug)} Máximo recomendado para esta prueba: <strong>{compact(maxRecommended)}</strong>.</div>
             </div>
           </div>
 
@@ -397,6 +433,24 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
         </details>
       </div>
 
+      {liveJob && (
+        <div className="card panel" style={{ marginTop: 16, padding: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "end", flexWrap: "wrap" }}>
+            <div>
+              <div className="eyebrow">PROGRESO EN VIVO</div>
+              <h2 style={{ margin: "5px 0 4px" }}>{guides[liveJob.preset_slug ?? ""]?.title ?? liveJob.preset_slug ?? "Simulación"}</h2>
+              <div style={{ color: "var(--muted)", fontSize: 11 }}>{humanPhase(liveJob.current_phase)} · se actualiza por Supabase Realtime</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <strong style={{ fontSize: 30 }}>{percent(liveJob).toFixed(1)}%</strong>
+              <div style={{ color: "var(--muted)", fontSize: 11 }}>{new Intl.NumberFormat("es-AR").format(Number(liveJob.progress_iterations))} / {new Intl.NumberFormat("es-AR").format(Number(liveJob.requested_iterations))}</div>
+            </div>
+          </div>
+          <div style={{ height: 10, marginTop: 14, background: "#0b121b", borderRadius: 20, overflow: "hidden" }}><div style={{ height: "100%", width: `${percent(liveJob)}%`, background: "var(--green)", transition: "width .3s" }} /></div>
+          <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 10 }}>Las corridas largas guardan un checkpoint durable por chunk y se dividen en segmentos para que Render pueda dormir sin perder el trabajo ya confirmado.</div>
+        </div>
+      )}
+
       <div className="card panel" style={{ marginTop: 16 }}>
         <div className="section-head"><div><div className="eyebrow">ACTIVIDAD</div><h2>Cola y ejecuciones recientes</h2></div><div className="section-desc">Sólo lo operativo: progreso, estado y acción.</div></div>
         <div className="table-wrap">
@@ -406,6 +460,7 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
               {jobs.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--muted)" }}>Todavía no hay simulaciones.</td></tr> : jobs.map((job) => {
                 const pct = percent(job);
                 const guide = job.preset_slug ? guides[job.preset_slug] : null;
+                const hasCheckpoint = Number(job.progress_iterations) > 0 && Number(job.progress_iterations) < Number(job.requested_iterations);
                 return (
                   <tr key={job.id}>
                     <td><strong>{guide?.title ?? job.preset_slug ?? job.id.slice(0, 8)}</strong><div style={{ fontSize: 10, color: "var(--muted)" }}>{job.id.slice(0, 8)} · intento {job.attempt}</div></td>
@@ -415,8 +470,19 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
                       <div style={{ height: 5, background: "#0b121b", borderRadius: 10, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: "var(--green)", transition: "width .3s" }} /></div>
                       {throughput(job) && <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 4 }}>{throughput(job)}</div>}
                     </td>
-                    <td><span className={job.status === "COMPLETED" ? "badge official" : job.status === "FAILED" ? "badge conflict" : "badge"}>{humanStatus(job.status)}</span>{job.error_message && <div style={{ color: "#ff9e9e", fontSize: 9, marginTop: 4 }}>{job.error_message.slice(0, 90)}</div>}</td>
-                    <td>{authorized && ["QUEUED", "CLAIMED", "RUNNING"].includes(job.status) ? <button style={smallButton} disabled={busy} onClick={() => void mutateJob(job.id, "cancel")}>Cancelar</button> : authorized && ["FAILED", "CANCELLED", "STALE"].includes(job.status) ? <button style={smallButton} disabled={busy} onClick={() => void mutateJob(job.id, "retry")}>Reintentar</button> : "—"}</td>
+                    <td><span className={job.status === "COMPLETED" ? "badge official" : job.status === "FAILED" ? "badge conflict" : "badge"}>{humanStatus(job.status)}</span><div style={{ color: "var(--muted)", fontSize: 9, marginTop: 4 }}>{humanPhase(job.current_phase)}</div>{job.error_message && <div style={{ color: "#ff9e9e", fontSize: 9, marginTop: 4 }}>{job.error_message.slice(0, 90)}</div>}</td>
+                    <td>
+                      {authorized && job.status === "QUEUED" ? (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {hasCheckpoint && <button style={smallButton} disabled={busy} onClick={() => void dispatchJob(job.id)}>Retomar</button>}
+                          <button style={smallButton} disabled={busy} onClick={() => void mutateJob(job.id, "cancel")}>Cancelar</button>
+                        </div>
+                      ) : authorized && ["CLAIMED", "RUNNING"].includes(job.status) ? (
+                        <button style={smallButton} disabled={busy} onClick={() => void mutateJob(job.id, "cancel")}>Cancelar</button>
+                      ) : authorized && ["FAILED", "CANCELLED", "STALE"].includes(job.status) ? (
+                        <button style={smallButton} disabled={busy} onClick={() => void mutateJob(job.id, "retry")}>Reintentar</button>
+                      ) : "—"}
+                    </td>
                   </tr>
                 );
               })}
