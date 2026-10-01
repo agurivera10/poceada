@@ -10,14 +10,14 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -39,8 +39,17 @@ jobs:
           for path, n in [('/tmp/portfolio.json', 2000),('/tmp/shadow.json',1000)]:
               d=json.load(open(path))
               assert d['iterations']==n
+              assert d['engine_version']=='SIM_ENGINE_V2'
               assert len(d['result_sha256'])==64
-          print('simulation smoke tests OK')
+              for family, events in d.get('event_counts', {}).items():
+                  for tier in range(2,6):
+                      assert f'at_least_{tier}' in events
+                      assert f'max_exactly_{tier}' in events
+                  sums=d['ticket_sums'][family]
+                  for tier in range(2,6):
+                      assert f'exactly_{tier}' in sums
+                      assert f'at_least_{tier}' in sums
+          print('simulation V2 smoke tests OK')
           PY
       - name: Typecheck
         run: npm run typecheck
@@ -61,7 +70,7 @@ jobs:
           fi
       - name: Upload lockfile
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: package-lock
           path: package-lock.json
