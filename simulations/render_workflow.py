@@ -18,13 +18,13 @@ WORKFLOW_VERSION = "RENDER_WORKFLOW_V1"
 app = Workflows(default_timeout=86_400, default_plan="flex")
 
 
-def worker_payload(worker_id: str, job_id: str | None = None) -> dict[str, Any]:
+def worker_payload(worker_id: str, job_id: str | None = None, status: str | None = None) -> dict[str, Any]:
     return {
         "id": worker_id,
         "display_name": "POCEADA Render Workflow",
         "worker_version": f"{WORKER_VERSION}+{WORKFLOW_VERSION}",
         "engine_version": ENGINE_VERSION,
-        "status": "BUSY" if job_id else "ONLINE",
+        "status": status or ("BUSY" if job_id else "ONLINE"),
         "capabilities": {
             "mode": "on_demand_workflow",
             "python": platform.python_version(),
@@ -51,34 +51,38 @@ def process_job_task(ctx: TaskContext, job_id: str) -> dict[str, Any]:
     The database claim makes duplicate task dispatches safe: only the first task
     can transition the target job from QUEUED to CLAIMED.
     """
+    del ctx
     client = SupabaseWorkerClient()
     worker_id = f"render-workflow-{socket.gethostname()}-{os.getpid()}"
     client.upsert_worker(worker_payload(worker_id))
 
-    job = client.claim_by_id(job_id, worker_id, lease_seconds=900)
-    if not job:
-        result = {"job_id": job_id, "status": "NOT_CLAIMED", "reason": "job is not queued or was already claimed"}
+    try:
+        job = client.claim_by_id(job_id, worker_id, lease_seconds=900)
+        if not job:
+            result = {"job_id": job_id, "status": "NOT_CLAIMED", "reason": "job is not queued or was already claimed"}
+            print(json.dumps(result), flush=True)
+            return result
+
+        client.upsert_worker(worker_payload(worker_id, job_id))
+        print(json.dumps({"message": "workflow job claimed", "job_id": job_id, "worker_id": worker_id}), flush=True)
+
+        try:
+            process_simulation_job(client, worker_id, job)
+            result = {"job_id": job_id, "status": "PROCESSED", "worker_id": worker_id}
+        except Exception as exc:
+            # process_simulation_job already records FAILED in Supabase. Returning a
+            # normal workflow result prevents Render's retry layer from creating
+            # duplicate attempts; retries remain explicit and auditable in our queue.
+            result = {
+                "job_id": job_id,
+                "status": "FAILED_RECORDED_IN_SUPABASE",
+                "worker_id": worker_id,
+                "error": str(exc)[:1000],
+            }
         print(json.dumps(result), flush=True)
         return result
-
-    client.upsert_worker(worker_payload(worker_id, job_id))
-    print(json.dumps({"message": "workflow job claimed", "job_id": job_id, "worker_id": worker_id}), flush=True)
-
-    try:
-        process_simulation_job(client, worker_id, job)
-        result = {"job_id": job_id, "status": "PROCESSED", "worker_id": worker_id}
-    except Exception as exc:
-        # process_simulation_job already records FAILED in Supabase. Returning a
-        # normal workflow result prevents Render's own retry layer from creating
-        # duplicate attempts; retries remain explicit and auditable in our queue.
-        result = {
-            "job_id": job_id,
-            "status": "FAILED_RECORDED_IN_SUPABASE",
-            "worker_id": worker_id,
-            "error": str(exc)[:1000],
-        }
-    print(json.dumps(result), flush=True)
-    return result
+    finally:
+        client.upsert_worker(worker_payload(worker_id, None, "OFFLINE"))
 
 
 if __name__ == "__main__":
