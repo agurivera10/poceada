@@ -1,0 +1,36 @@
+{
+  "version": "DATA-V1",
+  "generated_at": "2026-10-01",
+  "range": { "first_draw": 50, "last_draw": 316 },
+  "counts": {
+    "draws": 267,
+    "draws_2025": 155,
+    "draws_2026": 112,
+    "numbers": 2670,
+    "evidence_rows": 322,
+    "open_conflicts": 1
+  },
+  "validation_status": {
+    "OFICIAL": 36,
+    "SECUNDARIO_VERIFICADO": 7,
+    "SECUNDARIO_NO_VERIFICADO": 112,
+    "RECONSTRUIDO": 111,
+    "CONFLICTO": 1
+  },
+  "known_conflicts": [
+    {
+      "draw_number": 101,
+      "field": "draw_date",
+      "canonical_provisional": "2025-04-30",
+      "other_observed_value": "2025-05-01",
+      "status": "OPEN"
+    }
+  ],
+  "source_artifacts": {
+    "Poceada_Fase1_2025_COMPLETA(1).html": "33fd087a6dfa6eaa1f01b2dd1779ed9120d54d99c94cdbe6af881d17ce694294",
+    "Poceada_Fase1_2025_progreso_Q1(1).html": "17a817d750d18a3b1e2200c30231df1af6e9ad99301ff6fb64ae2fcb1684f7b0",
+    "Poceada_Correntina_2026_dashboard_v2(1).html": "a4c634b37029f68bdde89dc1fc79f76ebb463b6cb743e330817cedcb5e5b0d1b",
+    "Poceada_Laboratorio_V1_2026(1).html": "1161fdbbdf5629407bde52c6105739a6595d3d27de21bc1f46b25969bde1b1e1",
+    "Poceada_2026_estrategia_4_aciertos(2).html": "03a3ac1bf8c84261f335595645f1781313f0cd4f56ff880c19241e58e7f77b0e"
+  }
+}
