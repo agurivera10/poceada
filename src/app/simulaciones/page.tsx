@@ -3,6 +3,7 @@ import { DecisionSummary } from "@/components/decision-summary";
 import { SimulationControl } from "@/components/simulation-control";
 import { isLabAdmin } from "@/lib/lab-auth";
 import { createPublicClient } from "@/lib/supabase";
+import "./decision.css";
 
 export const dynamic = "force-dynamic";
 
