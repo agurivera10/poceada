@@ -21,8 +21,6 @@ services:
         sync: false
       - key: LAB_SESSION_SECRET
         generateValue: true
-      - key: SIMULATION_GIT_SHA
-        value: 977b43d3e1333c9f9cb3ff16aec88980a0985315
 
   - type: worker
     name: poceada-compute
