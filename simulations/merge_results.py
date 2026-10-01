@@ -28,7 +28,8 @@ def merge() -> None:
     if len(presets) != 1 or len(engines) != 1:
         raise SystemExit("cannot merge different presets or engines")
 
-    counters: dict[str, Counter] = defaultdict(Counter)
+    event_counts: dict[str, Counter] = defaultdict(Counter)
+    ticket_sums: dict[str, Counter] = defaultdict(Counter)
     histograms: dict[str, Counter] = defaultdict(Counter)
     total_iterations = 0
     total_runtime = 0.0
@@ -36,16 +37,23 @@ def merge() -> None:
     for shard in shards:
         total_iterations += int(shard["iterations"])
         total_runtime += float(shard["runtime_seconds"])
-        for family, values in shard.get("counters", {}).items():
+        for family, values in shard.get("event_counts", {}).items():
             for key, value in values.items():
-                counters[family][key] += int(value)
+                event_counts[family][key] += int(value)
+        for family, values in shard.get("ticket_sums", {}).items():
+            for key, value in values.items():
+                ticket_sums[family][key] += int(value)
         for metric, values in shard.get("histograms", {}).items():
             for key, value in values.items():
                 histograms[metric][key] += int(value)
 
     probabilities = {
         family: {key: value / total_iterations for key, value in values.items()}
-        for family, values in counters.items()
+        for family, values in event_counts.items()
+    }
+    expected_tickets = {
+        family: {key: value / total_iterations for key, value in values.items()}
+        for family, values in ticket_sums.items()
     }
 
     payload = {
@@ -54,8 +62,10 @@ def merge() -> None:
         "iterations": total_iterations,
         "shards": len(shards),
         "aggregate_runtime_seconds": total_runtime,
-        "counters": {k: dict(v) for k, v in counters.items()},
+        "event_counts": {k: dict(v) for k, v in event_counts.items()},
+        "ticket_sums": {k: dict(v) for k, v in ticket_sums.items()},
         "probabilities": probabilities,
+        "expected_tickets": expected_tickets,
         "histograms": {k: dict(v) for k, v in histograms.items()},
         "shard_hashes": [s["result_sha256"] for s in sorted(shards, key=lambda x: x["shard_index"])],
     }
