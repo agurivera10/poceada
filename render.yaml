@@ -15,7 +15,9 @@ services:
         value: sb_publishable_sLZPLOcYOBQgns1HO1LMZw_a32mK_5b
       - key: SUPABASE_URL
         value: https://oxjjmozpjbnawewdyuso.supabase.co
-      - key: SUPABASE_SERVICE_ROLE_KEY
+      - key: SIMULATION_GATEWAY_URL
+        value: https://oxjjmozpjbnawewdyuso.supabase.co/functions/v1/simulation-gateway
+      - key: LAB_SERVER_TOKEN
         sync: false
       - key: LAB_ADMIN_PASSWORD
         sync: false
@@ -25,6 +27,32 @@ services:
         sync: false
       - key: RENDER_WORKFLOW_TASK
         value: poceada-compute/process_job
+      - key: RENDER_FREE_COMPUTE_URL
+        sync: false
+      - key: RENDER_FREE_COMPUTE_TOKEN
+        sync: false
+
+  - type: web
+    name: poceada-compute-free
+    runtime: python
+    repo: https://github.com/agurivera10/poceada.git
+    branch: main
+    plan: free
+    region: virginia
+    buildCommand: pip install -r simulations/requirements.txt
+    startCommand: python -m simulations.http_worker
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: SUPABASE_URL
+        value: https://oxjjmozpjbnawewdyuso.supabase.co
+      - key: SIMULATION_GATEWAY_URL
+        value: https://oxjjmozpjbnawewdyuso.supabase.co/functions/v1/simulation-gateway
+      - key: SIM_WORKER_TOKEN
+        sync: false
+      - key: COMPUTE_DISPATCH_TOKEN
+        sync: false
+      - key: WORKER_ID
+        value: poceada-render-free
 
   - type: workflow
     name: poceada-compute
@@ -37,5 +65,7 @@ services:
     envVars:
       - key: SUPABASE_URL
         value: https://oxjjmozpjbnawewdyuso.supabase.co
-      - key: SUPABASE_SERVICE_ROLE_KEY
+      - key: SIMULATION_GATEWAY_URL
+        value: https://oxjjmozpjbnawewdyuso.supabase.co/functions/v1/simulation-gateway
+      - key: SIM_WORKER_TOKEN
         sync: false
