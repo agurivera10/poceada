@@ -17,12 +17,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: simulations/requirements.txt
       - name: Generate lockfile
         run: npm install --package-lock-only --ignore-scripts
       - name: Install exact dependency tree
         run: npm ci
+      - name: Install simulation runtime
+        run: pip install --requirement simulations/requirements.txt
       - name: Science invariants
         run: npm run test:science
+      - name: Simulation engine smoke tests
+        run: |
+          python simulations/run_simulation.py --preset portfolio-null-geometry-v1 --iterations 2000 --seed 123456 --output /tmp/portfolio.json
+          python simulations/run_simulation.py --preset selection-shadow-v1 --iterations 1000 --seed 654321 --output /tmp/shadow.json
+          python - <<'PY'
+          import json
+          for path, n in [('/tmp/portfolio.json', 2000),('/tmp/shadow.json',1000)]:
+              d=json.load(open(path))
+              assert d['iterations']==n
+              assert len(d['result_sha256'])==64
+          print('simulation smoke tests OK')
+          PY
       - name: Typecheck
         run: npm run typecheck
       - name: Build

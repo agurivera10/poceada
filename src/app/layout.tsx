@@ -11,6 +11,7 @@ const nav = [
   ["/", "Resumen"],
   ["/datos", "Datos"],
   ["/ciencia", "Ciencia"],
+  ["/simulaciones", "Simulaciones"],
   ["/auditoria", "Auditoría"],
 ];
 
