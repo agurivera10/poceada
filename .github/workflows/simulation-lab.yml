@@ -30,15 +30,15 @@ permissions:
 jobs:
   simulate:
     name: shard-${{ matrix.shard }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
     strategy:
       fail-fast: false
       matrix:
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -54,7 +54,7 @@ jobs:
             --shard-index "${{ matrix.shard }}" \
             --shard-count 8 \
             --output "out/shard-${{ matrix.shard }}.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: simulation-shard-${{ matrix.shard }}
           path: out/shard-${{ matrix.shard }}.json
@@ -62,20 +62,20 @@ jobs:
 
   merge:
     needs: simulate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: simulation-shard-*
           path: shards
           merge-multiple: true
       - name: Merge and hash results
         run: python simulations/merge_results.py --input-dir shards --output simulation-result.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: simulation-result-${{ github.run_id }}
           path: simulation-result.json
@@ -104,9 +104,16 @@ jobs:
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
           d=json.load(open('simulation-result.json'))
+          print(f"Engine: `{d['engine_version']}`")
           print(f"Result SHA-256: `{d['result_sha256']}`")
           print(f"Aggregated runtime: {d['aggregate_runtime_seconds']:.1f} shard-seconds")
           for family, values in d.get('probabilities', {}).items():
-              print(f"\n### {family}")
-              for k,v in values.items(): print(f"- {k}: {v:.8%}")
+              print(f"\n### {family} · event probabilities")
+              for k,v in values.items():
+                  print(f"- {k}: {v:.8%}")
+              expectations=d.get('expected_tickets', {}).get(family, {})
+              if expectations:
+                  print(f"\n### {family} · expected tickets per draw")
+                  for k,v in expectations.items():
+                      print(f"- {k}: {v:.8f}")
           PY
