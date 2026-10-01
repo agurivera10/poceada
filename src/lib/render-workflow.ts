@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase-admin";
+import { simulationGateway } from "@/lib/simulation-gateway";
 
 export type RenderDispatchResult = {
   configured: boolean;
@@ -28,6 +28,7 @@ export async function dispatchSimulationJob(jobId: string): Promise<RenderDispat
   }
 
   try {
+    const idempotencyKey = `poceada-simulation-${jobId}`;
     const response = await fetch("https://api.render.com/v1/task-runs", {
       method: "POST",
       headers: {
@@ -35,11 +36,7 @@ export async function dispatchSimulationJob(jobId: string): Promise<RenderDispat
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        task,
-        input: [jobId],
-        idempotencyKey: `poceada-simulation-${jobId}`,
-      }),
+      body: JSON.stringify({ task, input: [jobId], idempotencyKey }),
       cache: "no-store",
       signal: AbortSignal.timeout(20_000),
     });
@@ -55,25 +52,25 @@ export async function dispatchSimulationJob(jobId: string): Promise<RenderDispat
       return { configured: true, ok: false, error: "Render accepted the request but did not return a task run id." };
     }
 
-    const supabase = createAdminClient();
-    const { error } = await supabase.rpc("mark_simulation_job_dispatched", {
-      p_job_id: jobId,
-      p_backend: "RENDER_WORKFLOW",
-      p_dispatch_ref: taskRunId,
-      p_metadata: {
-        provider: "render_workflows",
-        task,
-        initial_status: status ?? null,
-        idempotency_key: `poceada-simulation-${jobId}`,
-      },
-    });
-    if (error) {
+    try {
+      await simulationGateway("mark_dispatched", {
+        job_id: jobId,
+        backend: "RENDER_WORKFLOW",
+        dispatch_ref: taskRunId,
+        metadata: {
+          provider: "render_workflows",
+          task,
+          initial_status: status ?? null,
+          idempotency_key: idempotencyKey,
+        },
+      });
+    } catch (error) {
       return {
         configured: true,
         ok: false,
         taskRunId,
         status,
-        error: `Render task started, but dispatch audit failed: ${error.message}`,
+        error: `Render task started, but dispatch audit failed: ${error instanceof Error ? error.message : "unknown gateway error"}`,
       };
     }
 
