@@ -10,9 +10,15 @@ export type RenderDispatchResult = {
   error?: string;
 };
 
+function renderConfig() {
+  return {
+    apiKey: process.env.RENDER_API_KEY,
+    task: process.env.RENDER_WORKFLOW_TASK,
+  };
+}
+
 export async function dispatchSimulationJob(jobId: string): Promise<RenderDispatchResult> {
-  const apiKey = process.env.RENDER_API_KEY;
-  const task = process.env.RENDER_WORKFLOW_TASK;
+  const { apiKey, task } = renderConfig();
   if (!apiKey || !task) {
     return {
       configured: false,
@@ -26,9 +32,14 @@ export async function dispatchSimulationJob(jobId: string): Promise<RenderDispat
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ task, input: [jobId] }),
+      body: JSON.stringify({
+        task,
+        input: [jobId],
+        idempotencyKey: `poceada-simulation-${jobId}`,
+      }),
       cache: "no-store",
       signal: AbortSignal.timeout(20_000),
     });
@@ -53,6 +64,7 @@ export async function dispatchSimulationJob(jobId: string): Promise<RenderDispat
         provider: "render_workflows",
         task,
         initial_status: status ?? null,
+        idempotency_key: `poceada-simulation-${jobId}`,
       },
     });
     if (error) {
@@ -72,5 +84,27 @@ export async function dispatchSimulationJob(jobId: string): Promise<RenderDispat
       ok: false,
       error: error instanceof Error ? error.message : "Render Workflow dispatch failed.",
     };
+  }
+}
+
+export async function cancelRenderTaskRun(taskRunId: string): Promise<{ configured: boolean; ok: boolean; error?: string }> {
+  const { apiKey } = renderConfig();
+  if (!apiKey) return { configured: false, ok: false, error: "Render API key is not configured." };
+  try {
+    const response = await fetch(`https://api.render.com/v1/task-runs/${encodeURIComponent(taskRunId)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (response.status === 204 || response.status === 404) return { configured: true, ok: true };
+    const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    return {
+      configured: true,
+      ok: false,
+      error: typeof body.message === "string" ? body.message : `Render API returned HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return { configured: true, ok: false, error: error instanceof Error ? error.message : "Render cancel failed." };
   }
 }
