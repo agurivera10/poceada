@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 
 function gitSha() {
-  const value = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.SIMULATION_GIT_SHA;
+  const value = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.RENDER_GIT_COMMIT ?? process.env.SIMULATION_GIT_SHA;
   if (!value || !/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(value)) {
     throw new Error("No hay un Git SHA válido disponible para congelar la corrida.");
   }
