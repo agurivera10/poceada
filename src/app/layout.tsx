@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const nav = [
   ["/", "Resumen"],
   ["/datos", "Datos"],
+  ["/ciencia", "Ciencia"],
   ["/auditoria", "Auditoría"],
 ];
 
@@ -33,7 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {children}
         <footer className="footer">
           <div className="shell">
-            DATA‑V1 · análisis experimental y auditable. Las métricas históricas no garantizan resultados futuros.
+            SCIENCE CORE V1 · análisis experimental y auditable. Las métricas históricas no garantizan resultados futuros.
           </div>
         </footer>
       </body>

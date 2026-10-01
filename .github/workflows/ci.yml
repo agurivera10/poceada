@@ -21,6 +21,8 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts
       - name: Install exact dependency tree
         run: npm ci
+      - name: Science invariants
+        run: npm run test:science
       - name: Typecheck
         run: npm run typecheck
       - name: Build
