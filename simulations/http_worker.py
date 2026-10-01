@@ -15,6 +15,7 @@ HOST = "0.0.0.0"
 PORT = int(os.getenv("PORT", "10000"))
 DISPATCH_TOKEN = os.environ.get("COMPUTE_DISPATCH_TOKEN", "")
 SERVICE_ID = os.environ.get("WORKER_ID", "poceada-render-free")
+AUTO_RUN_JOB_ID = os.environ.get("AUTO_RUN_JOB_ID", "").strip()
 
 _lock = threading.Lock()
 _state: dict[str, Any] = {"job_id": None, "started_at": None, "last_error": None}
@@ -42,6 +43,15 @@ def execute(job_id: str) -> None:
         _state["started_at"] = None
         _lock.release()
         print(json.dumps({"message": "free compute finished", "job_id": job_id, "runtime_seconds": round(time.time() - started, 3), "error": _state.get("last_error")}), flush=True)
+
+
+def launch(job_id: str) -> bool:
+    if not job_id or not _lock.acquire(blocking=False):
+        return False
+    _state.update({"job_id": job_id, "started_at": time.time(), "last_error": None})
+    thread = threading.Thread(target=execute, args=(job_id,), daemon=True, name=f"poceada-{job_id[:8]}")
+    thread.start()
+    return True
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -98,17 +108,17 @@ class Handler(BaseHTTPRequestHandler):
         if not job_id:
             self.send_json(400, {"ok": False, "error": "job_id required"})
             return
-        if not _lock.acquire(blocking=False):
+        if not launch(job_id):
             self.send_json(409, {"ok": False, "error": "compute busy", "job_id": _state.get("job_id")})
             return
-
-        _state.update({"job_id": job_id, "started_at": time.time(), "last_error": None})
-        thread = threading.Thread(target=execute, args=(job_id,), daemon=True, name=f"poceada-{job_id[:8]}")
-        thread.start()
         dispatch_ref = f"render-free:{job_id}"
         self.send_json(202, {"ok": True, "accepted": True, "job_id": job_id, "dispatch_ref": dispatch_ref})
 
 
 if __name__ == "__main__":
-    print(json.dumps({"message": "POCEADA free compute online", "port": PORT, "worker_id": SERVICE_ID, "configured": bool(DISPATCH_TOKEN and os.environ.get("SIM_WORKER_TOKEN"))}), flush=True)
+    configured = bool(DISPATCH_TOKEN and os.environ.get("SIM_WORKER_TOKEN"))
+    print(json.dumps({"message": "POCEADA free compute online", "port": PORT, "worker_id": SERVICE_ID, "configured": configured}), flush=True)
+    if AUTO_RUN_JOB_ID and configured:
+        accepted = launch(AUTO_RUN_JOB_ID)
+        print(json.dumps({"message": "acceptance bootstrap", "job_id": AUTO_RUN_JOB_ID, "accepted": accepted}), flush=True)
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
