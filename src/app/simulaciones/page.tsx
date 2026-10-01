@@ -62,10 +62,9 @@ export default async function SimulacionesPage() {
   const jobs = jobsRes.data ?? [];
   const workers = workersRes.data ?? [];
 
-  const geometryExperiments = experiments
-    .filter((row) => row.status === "COMPLETED" && row.category === "PORTFOLIO_GEOMETRY")
-    .sort((a, b) => Number(b.requested_iterations) - Number(a.requested_iterations) || +new Date(b.completed_at ?? b.created_at) - +new Date(a.completed_at ?? a.created_at));
-  const latestDecisionExperiment = geometryExperiments[0];
+  // Prefer the newest completed geometry run because V2 metrics (2/3/4/5) were introduced after legacy V1 runs.
+  // The DecisionSummary itself labels low-iteration evidence as exploratory, preventing a 100K smoke test from looking conclusive.
+  const latestDecisionExperiment = experiments.find((row) => row.status === "COMPLETED" && row.category === "PORTFOLIO_GEOMETRY");
 
   let decisionMetrics: Array<{ metric_name: string; metric_value: number | null }> = [];
   if (latestDecisionExperiment) {
@@ -80,7 +79,7 @@ export default async function SimulacionesPage() {
   }
 
   const totalIterations = Number(status.completed_iterations);
-  const precisionNext = latestDecisionExperiment && Number(latestDecisionExperiment.requested_iterations) < 10_000_000;
+  const precisionNext = !latestDecisionExperiment || decisionMetrics.length === 0 || Number(latestDecisionExperiment.requested_iterations) < 10_000_000;
 
   return (
     <main>
@@ -107,7 +106,7 @@ export default async function SimulacionesPage() {
           <div className="card kpi"><div className="kpi-label">Controles</div><div className="kpi-value">{compact(status.materialized_shadows)}</div><div className="kpi-sub">shadows prospectivos</div></div>
         </section>
 
-        {latestDecisionExperiment ? (
+        {latestDecisionExperiment && decisionMetrics.length > 0 ? (
           <DecisionSummary
             metrics={decisionMetrics}
             iterations={Number(latestDecisionExperiment.requested_iterations)}
@@ -115,7 +114,7 @@ export default async function SimulacionesPage() {
             experimentId={latestDecisionExperiment.id}
           />
         ) : (
-          <section className="section"><div className="alert"><div className="alert-dot" /><div><strong>Todavía no hay una corrida de geometría para decidir.</strong><p>Ejecutá Portfolio Null Geometry para generar el primer comparador 2+/3+/4+/5 con presupuesto constante.</p></div></div></section>
+          <section className="section"><div className="alert"><div className="alert-dot" /><div><strong>Falta una corrida V2 comparable para decidir.</strong><p>Ejecutá Portfolio Null Geometry para generar el comparador completo 2+/3+/4+/5 con presupuesto constante.</p></div></div></section>
         )}
 
         <section className="section">
@@ -126,7 +125,7 @@ export default async function SimulacionesPage() {
           <div className="decision-next-grid">
             <div className="card decision-next-card primary">
               <span>01</span><strong>{precisionNext ? "Subir precisión de geometría" : "Geometría con buena escala"}</strong>
-              <p>{precisionNext ? "La corrida actual es diagnóstica. El próximo salto útil es 10M para estabilizar 4+ y comparar carteras sin sobreleer ruido de Monte Carlo." : "Ya tenemos al menos 10M para la comparación geométrica. El siguiente cuello de botella pasa a optimización por objetivo, selección y economía."}</p>
+              <p>{precisionNext ? "La evidencia V2 actual todavía es diagnóstica. El próximo salto útil es 10M para estabilizar 4+ y comparar carteras sin sobreleer ruido de Monte Carlo." : "Ya tenemos al menos 10M V2 para la comparación geométrica. El siguiente cuello de botella pasa a optimización por objetivo, selección y economía."}</p>
             </div>
             <div className="card decision-next-card"><span>02</span><strong>Optimizar para un objetivo</strong><p>En vez de buscar “la mejor cartera” en abstracto, elegir una función: P(2+), P(3+), P(4+), múltiples premios o una combinación ponderada.</p></div>
             <div className="card decision-next-card"><span>03</span><strong>Agregar economía real</strong><p>Cuando tengamos payouts oficiales completos de 2/3/4/5, comparar frecuencia de cobro con retorno esperado, recuperación de costo y drawdown.</p></div>
