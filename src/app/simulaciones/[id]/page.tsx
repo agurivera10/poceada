@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DecisionSummary } from "@/components/decision-summary";
 import { createPublicClient } from "@/lib/supabase";
+import "../decision.css";
 
 export const dynamic = "force-dynamic";
 
@@ -104,7 +106,7 @@ function HistogramBars({ histogram }: { histogram: Histogram }) {
             <div key={`${histogram.metric_name}-${edge}`} style={{ display: "grid", gridTemplateColumns: "42px 1fr 86px", gap: 9, alignItems: "center", fontSize: 11 }}>
               <strong>{edge}</strong>
               <div style={{ height: 7, borderRadius: 20, background: "#09111a", overflow: "hidden" }}>
-                <div style={{ width: `${width}%`, height: "100%", background: "var(--accent)" }} />
+                <div style={{ width: `${width}%`, height: "100%", background: "var(--green)" }} />
               </div>
               <span style={{ color: "var(--muted)", textAlign: "right" }}>{total ? fmt(count / total, true) : "—"}</span>
             </div>
@@ -152,14 +154,15 @@ export default async function SimulationExperimentPage({ params }: { params: Pro
 
         <section className="hero" style={{ paddingTop: 30 }}>
           <div>
-            <div className="eyebrow">EXPERIMENT RESULT · {experiment.engine_version}</div>
+            <div className="eyebrow">RESULTADO · {experiment.engine_version}</div>
             <h1 style={{ fontSize: "clamp(38px,6vw,76px)" }}>{experiment.name}</h1>
             <p>{experiment.hypothesis ?? "Experimento de simulación reproducible."}</p>
           </div>
-          <div className="hero-note">
+          <div className="hero-note decision-status">
             <strong>{experiment.status}</strong>
-            <span>{experiment.preset_slug ?? experiment.category}</span>
-            <div className="meta-row" style={{ marginTop: 13 }}><span>Seed <strong>{experiment.seed_base}</strong></span><span>Iteraciones <strong>{compact(experiment.requested_iterations)}</strong></span></div>
+            <div className="decision-status-line"><span>Iteraciones</span><b>{compact(experiment.requested_iterations)}</b></div>
+            <div className="decision-status-line"><span>Seed</span><b>{experiment.seed_base}</b></div>
+            <div className="decision-status-line"><span>Finalizó</span><b>{dateTime(experiment.completed_at)}</b></div>
           </div>
         </section>
 
@@ -171,16 +174,23 @@ export default async function SimulationExperimentPage({ params }: { params: Pro
           <div className="card kpi"><div className="kpi-label">Engine</div><div className="kpi-value" style={{ fontSize: 20 }}>{experiment.engine_version}</div><div className="kpi-sub">commit {String(experiment.git_commit_sha).slice(0, 9)}</div></div>
         </section>
 
+        <DecisionSummary
+          metrics={metrics}
+          iterations={Number(experiment.requested_iterations)}
+          experimentName={experiment.name}
+          experimentId={experiment.id}
+        />
+
         {eventRows.length > 0 && (
           <section className="section">
-            <div className="section-head"><div><div className="eyebrow">EVENT PROBABILITIES</div><h2>Probabilidad de cobrar por nivel</h2></div><div className="section-desc">P(al menos un ticket con ≥2, ≥3, ≥4 o 5 aciertos). Esto es una probabilidad de evento de cartera, no cantidad esperada de tickets.</div></div>
+            <div className="section-head"><div><div className="eyebrow">DETALLE DE PROBABILIDADES</div><h2>Probabilidad de cobrar por nivel</h2></div><div className="section-desc">P(al menos un ticket con ≥2, ≥3, ≥4 o 5 aciertos). Es probabilidad de evento de cartera, no cantidad esperada de tickets.</div></div>
             <div className="table-wrap"><table><thead><tr><th>Geometría</th><th>≥2</th><th>≥3</th><th>≥4</th><th>5</th><th>Máx=2</th><th>Máx=3</th><th>Máx=4</th></tr></thead><tbody>{eventRows.map(([family, values]) => <tr key={family}><td><strong>{humanFamily(family)}</strong></td><td>{fmt(values.at_least_2, true)}</td><td>{fmt(values.at_least_3, true)}</td><td>{fmt(values.at_least_4, true)}</td><td>{fmt(values.at_least_5, true)}</td><td>{fmt(values.max_exactly_2, true)}</td><td>{fmt(values.max_exactly_3, true)}</td><td>{fmt(values.max_exactly_4, true)}</td></tr>)}</tbody></table></div>
           </section>
         )}
 
         {expectationRows.length > 0 && (
           <section className="section">
-            <div className="section-head"><div><div className="eyebrow">TICKET EXPECTATIONS</div><h2>Tickets esperados por sorteo</h2></div><div className="section-desc">Cantidad media de tickets de la cartera que caen exactamente en cada categoría. Puede ser mayor que una probabilidad porque una misma corrida puede producir varios tickets premiados.</div></div>
+            <div className="section-head"><div><div className="eyebrow">CANTIDAD DE TICKETS</div><h2>Tickets esperados por sorteo</h2></div><div className="section-desc">Cantidad media de tickets que caen exactamente en cada categoría. Puede ser mayor que una probabilidad porque una corrida puede producir varios premios.</div></div>
             <div className="table-wrap"><table><thead><tr><th>Geometría</th><th>Exactos 2</th><th>Exactos 3</th><th>Exactos 4</th><th>Exactos 5</th><th>Tickets 2+</th><th>Tickets 3+</th><th>Tickets 4+</th></tr></thead><tbody>{expectationRows.map(([family, values]) => <tr key={family}><td><strong>{humanFamily(family)}</strong></td><td>{fmt(values.exactly_2)}</td><td>{fmt(values.exactly_3)}</td><td>{fmt(values.exactly_4)}</td><td>{fmt(values.exactly_5)}</td><td>{fmt(values.at_least_2)}</td><td>{fmt(values.at_least_3)}</td><td>{fmt(values.at_least_4)}</td></tr>)}</tbody></table></div>
           </section>
         )}
@@ -196,16 +206,16 @@ export default async function SimulationExperimentPage({ params }: { params: Pro
         )}
 
         {maxHitHistograms.length > 0 && (
-          <section className="section"><div className="section-head"><div><div className="eyebrow">HISTOGRAMS</div><h2>Distribución del máximo de aciertos</h2></div></div><div className="two-col">{maxHitHistograms.map((row) => <HistogramBars key={row.metric_name} histogram={row} />)}</div></section>
+          <section className="section"><div className="section-head"><div><div className="eyebrow">DISTRIBUCIONES</div><h2>Máximo de aciertos por cartera</h2></div></div><div className="two-col">{maxHitHistograms.map((row) => <HistogramBars key={row.metric_name} histogram={row} />)}</div></section>
         )}
 
         <section className="section">
-          <div className="section-head"><div><div className="eyebrow">AUDIT TRAIL</div><h2>Chunks y hashes</h2></div><div className="section-desc">Cada unidad mantiene seed, runtime y SHA‑256. Esto permite reproducir y auditar una corrida sin guardar cada universo sintético.</div></div>
+          <div className="section-head"><div><div className="eyebrow">AUDITORÍA TÉCNICA</div><h2>Chunks y hashes</h2></div><div className="section-desc">Queda abajo a propósito: sirve para reproducir y auditar, no para tomar la decisión inicial.</div></div>
           <div className="table-wrap"><table><thead><tr><th>Chunk</th><th>Iteraciones</th><th>Seed</th><th>Runtime</th><th>Estado</th><th>SHA‑256</th></tr></thead><tbody>{chunks.length === 0 ? <tr><td colSpan={6} style={{ color: "var(--muted)" }}>Sin chunks persistidos.</td></tr> : chunks.map((row) => <tr key={row.chunk_index}><td>{row.chunk_index}</td><td>{compact(row.iterations)}</td><td>{row.seed_start}</td><td>{row.runtime_ms == null ? "—" : `${(Number(row.runtime_ms) / 1000).toFixed(2)} s`}</td><td><span className={row.status === "COMPLETED" ? "badge official" : "badge"}>{row.status}</span></td><td style={{ fontFamily: "monospace", fontSize: 10 }}>{row.result_sha256 ? `${row.result_sha256.slice(0, 18)}…` : "—"}</td></tr>)}</tbody></table></div>
         </section>
 
         {eventRows.length === 0 && expectationRows.length === 0 && metrics.length > 0 && (
-          <section className="section"><div className="section-head"><div><div className="eyebrow">LEGACY / GENERIC METRICS</div><h2>Métricas registradas</h2></div></div><div className="table-wrap"><table><thead><tr><th>Métrica</th><th>Valor</th><th>SE</th></tr></thead><tbody>{metrics.map((row) => <tr key={row.metric_name}><td>{row.metric_name}</td><td>{fmt(row.metric_value)}</td><td>{fmt(row.standard_error)}</td></tr>)}</tbody></table></div></section>
+          <section className="section"><div className="section-head"><div><div className="eyebrow">MÉTRICAS GENÉRICAS</div><h2>Métricas registradas</h2></div></div><div className="table-wrap"><table><thead><tr><th>Métrica</th><th>Valor</th><th>SE</th></tr></thead><tbody>{metrics.map((row) => <tr key={row.metric_name}><td>{row.metric_name}</td><td>{fmt(row.metric_value)}</td><td>{fmt(row.standard_error)}</td></tr>)}</tbody></table></div></section>
         )}
 
         <section className="section two-col">
