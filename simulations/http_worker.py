@@ -60,13 +60,22 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            self.send_json(200, {"ok": True, "busy": _lock.locked(), "job_id": _state.get("job_id"), "last_error": _state.get("last_error")})
+            self.send_json(200, {
+                "ok": True,
+                "configured": bool(DISPATCH_TOKEN and os.environ.get("SIM_WORKER_TOKEN")),
+                "busy": _lock.locked(),
+                "job_id": _state.get("job_id"),
+                "last_error": _state.get("last_error"),
+            })
             return
         self.send_json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:
         if self.path != "/run":
             self.send_json(404, {"ok": False, "error": "not found"})
+            return
+        if not DISPATCH_TOKEN or not os.environ.get("SIM_WORKER_TOKEN"):
+            self.send_json(503, {"ok": False, "error": "compute is locked until secrets are configured"})
             return
         if not constant_time_equal(self.headers.get("x-compute-token", ""), DISPATCH_TOKEN):
             self.send_json(401, {"ok": False, "error": "unauthorized"})
@@ -93,7 +102,5 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    if not DISPATCH_TOKEN:
-        raise RuntimeError("COMPUTE_DISPATCH_TOKEN is required")
-    print(json.dumps({"message": "POCEADA free compute online", "port": PORT, "worker_id": SERVICE_ID}), flush=True)
+    print(json.dumps({"message": "POCEADA free compute online", "port": PORT, "worker_id": SERVICE_ID, "configured": bool(DISPATCH_TOKEN and os.environ.get("SIM_WORKER_TOKEN"))}), flush=True)
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
