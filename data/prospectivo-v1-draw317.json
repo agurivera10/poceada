@@ -1,0 +1,132 @@
+{
+  "protocol": "PROSPECTIVO-V1",
+  "target_draw": 317,
+  "trained_through": 316,
+  "freeze_timestamp_utc": "2026-10-01T12:40:37.867837Z",
+  "predictive_code_commit": "4f4d73d67efb8f117306784b264d7f3d154af3bf",
+  "dataset": {
+    "id": "2754b931-a5ad-4a9a-a1d0-2a01e3064c39",
+    "sha256": "7c9d26235dbec169023ef7ff28241b6da30512f706d029be6dd60222905dc882"
+  },
+  "features": {
+    "id": "04d1a710-5277-45f3-b591-9bcf68e5ecca",
+    "version": "FEATURES_V1_LOCKED",
+    "sha256": "d606f41bb84246f3b1d8d3b795eec0b3f21e43f075b539d567e8bd1816d021d5"
+  },
+  "experiments": {
+    "selection": {
+      "id": "4d6a5e17-dcc5-43b3-b0e5-a79caa9e6294",
+      "slug": "prospectivo-selection-v1",
+      "primary_metric": "pool15_hits",
+      "planned_min_draws": 50,
+      "shadow_count": 1000
+    },
+    "probability": {
+      "id": "f1d23eca-2a0d-4a61-9c21-c87000c45509",
+      "slug": "prospectivo-probability-v1",
+      "primary_metric": "brier_score",
+      "planned_min_draws": 50
+    }
+  },
+  "selection_runs": [
+    {
+      "model": "weighted15-historical-v1",
+      "run_id": "952d791b-7e4e-4db4-bb71-5c2a70bd9a7f",
+      "run_sha256": "b3265b979a94e7b6f8503a22f1b1d175671492ff3b94d895fa558b6397c39a7f",
+      "ranking": [26,57,16,85,27,2,88,39,47,45,35,30,41,1,78]
+    },
+    {
+      "model": "consensus15-lab-v1",
+      "run_id": "947f835a-6762-45b7-90a6-e036080b8767",
+      "run_sha256": "b85c9dfe63f59619c9918a2bf079d7d855405a7dd6a6afa822ca79b87dc69880",
+      "ranking_top25": [26,16,27,85,57,2,88,41,35,1,30,45,78,81,80,47,39,72,96,13,53,12,33,79,92]
+    },
+    {
+      "model": "weighted-rate-v2",
+      "run_id": "e26702e3-4bd1-497f-adbe-00365c39d2e1",
+      "run_sha256": "5f5d63dc80b9a21c261722ca6bd817146609376fd70bdd4b0a09c711871a93f1",
+      "ranking_top15": [57,26,39,85,47,16,2,27,45,88,30,41,96,78,81]
+    },
+    {
+      "model": "random-ranking-control-v1",
+      "run_id": "c65f3e8a-6ce2-4e6b-ab61-cddf1245829b",
+      "run_sha256": "da915041e6f6b4e0c271066182debd0efd381c5ebc0c3c64d918ed0bab596477",
+      "seed": 3170001,
+      "pool_hash_order": [26,38,56,80,71,51,32,15,3,43,79,67,17,46,33]
+    },
+    {
+      "model": "wheel6-historical-control-v1",
+      "run_id": "8e8e19c7-11c7-4cdb-83da-937f47223ea6",
+      "run_sha256": "9a9ffcebcbebf39a1a1340b96e8702fc2343b2b4f7c39d0a7f832fb756b22c86",
+      "pool": [16,26,57,79,85,88]
+    }
+  ],
+  "probability_runs": [
+    {
+      "model": "uniform-baseline-v1",
+      "run_id": "1a5162fe-ca1d-4d9f-9626-f89bf2bd3be5",
+      "run_sha256": "4d2bbbf0afb4923997e4c5bda949c6ca17689f2a6ffba25c2d95c9010a967874"
+    },
+    {
+      "model": "empirical-bayes-v1",
+      "run_id": "09725944-4a7d-4214-a71f-825077ce1afc",
+      "run_sha256": "a8b8a26c6c84cc9d41315a03b5b317380d703d20f2b03b6f32b792ce62192910",
+      "top15": [16,88,12,13,26,33,35,79,85,1,23,27,75,17,38]
+    },
+    {
+      "model": "ewma-hl20-v1",
+      "run_id": "17e3821a-74f1-4ed5-a48d-53a0839965a5",
+      "run_sha256": "13aa7967796b236f98f7beb22bdd75b6c17646f322d75b2e00a1f67f5e94d054",
+      "top15": [16,85,57,2,26,27,47,39,30,88,1,35,45,53,78]
+    }
+  ],
+  "portfolios": [
+    {
+      "name": "Weighted-15 / K6 Edge",
+      "sha256": "ab7d90be7082b6ead2ee9a0b7e16d5817594ceff8d3095196fc71ef366476634",
+      "tickets": [[2,26,35,45,88],[1,35,39,47,85],[16,26,27,57,85],[1,2,16,41,78],[30,39,41,57,88],[27,30,45,47,78]]
+    },
+    {
+      "name": "Consensus-15 / K6 Edge",
+      "sha256": "e800c3b9292a0178489b3d9849685f4f61a40430bcd8f8cf40a4f687410a20b0",
+      "tickets": [[26,35,41,45,80],[16,26,57,81,85],[2,27,78,80,81],[1,30,41,57,78],[1,2,16,45,88],[27,30,35,85,88]]
+    },
+    {
+      "name": "Weighted Rate V2 / K6 Edge",
+      "sha256": "ec75e4c6a3fbd5fc784cbfa4a55f2b16b70da8696f6e55539a401e43ad560cf5",
+      "tickets": [[26,39,47,57,85],[2,16,27,45,57],[16,26,30,41,88],[2,39,78,88,96],[27,30,81,85,96],[41,45,47,78,81]]
+    },
+    {
+      "name": "Random-15 / K6 Edge",
+      "sha256": "f3b19b939218d58cb07fd640ddcd6329dfe10d5657b9477e528b66da8729fc4c",
+      "tickets": [[26,38,56,71,80],[3,15,26,32,51],[38,43,51,67,79],[17,32,43,46,56],[15,17,33,79,80],[3,33,46,67,71]]
+    },
+    {
+      "name": "Wheel-6 / concentrated",
+      "sha256": "7c12a7a80c4f9f978a4d3ec667abc5b3983371d34697a6535d64182bba3df603",
+      "tickets": [[26,57,79,85,88],[16,57,79,85,88],[16,26,79,85,88],[16,26,57,85,88],[16,26,57,79,88],[16,26,57,79,85]]
+    }
+  ],
+  "null_geometry": {
+    "k6_edge_15": {
+      "unique_numbers": 15,
+      "unique_four_subsets": 30,
+      "max_pairwise_overlap": 1,
+      "p_at_least_4": 0.00152459516373242
+    },
+    "complete_6_choose_5": {
+      "unique_numbers": 6,
+      "unique_four_subsets": 15,
+      "duplicate_four_subsets": 15,
+      "max_pairwise_overlap": 4,
+      "p_at_least_4": 0.0007247500193783428
+    }
+  },
+  "shadow_batch": {
+    "id": "5c80bfbb-a707-4064-8411-1c73d4d47aad",
+    "count": 1000,
+    "seed_start": 317100000,
+    "generator": "SHA256_POOL_V1",
+    "sha256": "e6cd4f745b17c53b0ffe58b85a950b17822cec4faa4e8df948d85cbe7431bbc9"
+  }
+}
