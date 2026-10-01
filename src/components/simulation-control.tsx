@@ -47,6 +47,70 @@ type Worker = {
   failed_jobs: number;
 };
 
+type PresetGuide = {
+  title: string;
+  question: string;
+  useWhen: string;
+  returns: string;
+  notFor: string;
+  recommended?: boolean;
+};
+
+const guides: Record<string, PresetGuide> = {
+  "portfolio-null-geometry-v1": {
+    title: "Comparar cómo repartir las jugadas",
+    question: "¿Conviene K6, rueda de 6 o tickets separados?",
+    useWhen: "Cuando querés comparar 6 jugadas con el mismo costo y decidir qué estructura cubre mejor 2+, 3+, 4+ y 5.",
+    returns: "Probabilidad de cobrar por nivel, premios múltiples y comparación directa entre geometrías.",
+    notFor: "No intenta adivinar qué números van a salir.",
+    recommended: true,
+  },
+  "selection-shadow-v1": {
+    title: "Probar si nuestro ranking realmente aporta",
+    question: "¿Nuestros 15 números elegidos superan a elegir 15 al azar?",
+    useWhen: "Cuando ya tenemos una regla de selección y queremos medirla contra miles de controles con igual presupuesto y geometría.",
+    returns: "Percentil del selector, aciertos del pool y comparación contra selecciones aleatorias equivalentes.",
+    notFor: "No mejora la geometría de los tickets; mide la selección de números.",
+  },
+  "portfolio-optimizer-v1": {
+    title: "Buscar una mejor distribución de tickets",
+    question: "Dado un pool, ¿cómo conviene repartirlo entre las jugadas?",
+    useWhen: "Cuando ya elegiste el pool de números y querés buscar automáticamente una geometría con menos duplicación y mejor cobertura.",
+    returns: "Una cartera candidata, cobertura de subconjuntos, overlap y métricas geométricas.",
+    notFor: "No decide qué números son más probables; optimiza cómo combinarlos.",
+  },
+  "null-season-patterns-v1": {
+    title: "Ver si un patrón puede ser puro azar",
+    question: "¿Un atraso, una racha o una frecuencia alta es realmente raro?",
+    useWhen: "Cuando aparece algo llamativo en los datos históricos y queremos saber cuántas veces surgiría en temporadas completamente aleatorias.",
+    returns: "Distribuciones y percentiles de frecuencia máxima, atraso máximo y rachas.",
+    notFor: "No arma jugadas ni dice qué número está por salir.",
+  },
+  "multiple-testing-redteam-v1": {
+    title: "Detectar autoengaño estadístico",
+    question: "¿Encontramos una señal real o sólo la mejor entre muchas pruebas?",
+    useWhen: "Cuando probamos muchos modelos, ventanas o criterios y queremos estimar cuántos éxitos aparentes aparecen sólo por data mining.",
+    returns: "Tasa de falsos hallazgos, mejor resultado por azar y correcciones por múltiples pruebas.",
+    notFor: "No elige una jugada; valida si nuestra investigación es confiable.",
+  },
+};
+
+const presetOrder = [
+  "portfolio-null-geometry-v1",
+  "selection-shadow-v1",
+  "portfolio-optimizer-v1",
+  "null-season-patterns-v1",
+  "multiple-testing-redteam-v1",
+];
+
+const scales = [
+  { value: 100_000, label: "100K", note: "Prueba rápida" },
+  { value: 1_000_000, label: "1M", note: "Diagnóstico" },
+  { value: 10_000_000, label: "10M", note: "Alta confianza" },
+  { value: 100_000_000, label: "100M", note: "Muy alta precisión" },
+  { value: 1_000_000_000, label: "1B", note: "Extrema" },
+];
+
 const field: CSSProperties = {
   width: "100%",
   padding: "11px 12px",
@@ -66,24 +130,6 @@ const smallButton: CSSProperties = {
   cursor: "pointer",
   fontSize: 11,
 };
-
-const purpose: Record<string, string> = {
-  PORTFOLIO_GEOMETRY: "Comparar cómo repartir el mismo presupuesto entre tickets.",
-  NULL_HISTORY: "Medir qué patrones aparecen normalmente aunque todo sea azar.",
-  SELECTION_SHADOW: "Comparar nuestro selector contra miles de selecciones aleatorias equivalentes.",
-  MULTIPLE_TESTING: "Cuantificar cuánto falso descubrimiento genera probar muchas estrategias.",
-  OPTIMIZATION: "Buscar automáticamente la geometría de tickets para un objetivo elegido.",
-  RANDOMNESS: "Buscar desviaciones de uniformidad o dependencias que resistan controles.",
-  BANKROLL: "Simular retorno, drawdown y riesgo con payouts reales.",
-};
-
-const scales = [
-  { value: 100_000, label: "100K", note: "Prueba rápida" },
-  { value: 1_000_000, label: "1M", note: "Diagnóstico" },
-  { value: 10_000_000, label: "10M", note: "Recomendado" },
-  { value: 100_000_000, label: "100M", note: "Alta precisión" },
-  { value: 1_000_000_000, label: "1B", note: "Extrema" },
-];
 
 function compact(value: number | string | null | undefined) {
   return new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 2 }).format(Number(value ?? 0));
@@ -116,6 +162,15 @@ function humanStatus(status: string) {
   return labels[status] ?? status;
 }
 
+function recommendedScale(slug: string) {
+  if (slug === "portfolio-null-geometry-v1") return "10M es el punto de partida recomendado para comparar 4+ con estabilidad.";
+  if (slug === "selection-shadow-v1") return "1M sirve para diagnóstico; 10M si querés percentiles más estables.";
+  if (slug === "portfolio-optimizer-v1") return "250K–1M suele alcanzar para buscar candidatos; después validalos con Geometry.";
+  if (slug === "null-season-patterns-v1") return "100K–1M temporadas suelen ser suficientes para medir qué tan raro es un patrón.";
+  if (slug === "multiple-testing-redteam-v1") return "100K–1M historiales permiten estimar bien la tasa de falsos descubrimientos.";
+  return "Elegí la escala según la rareza del evento que querés medir.";
+}
+
 export function SimulationControl({ presets, initialJobs, initialWorkers, initialAuthorized }: {
   presets: Preset[];
   initialJobs: Job[];
@@ -124,6 +179,12 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
 }) {
   const supabase = useMemo(() => createPublicClient(), []);
   const preferred = presets.find((p) => p.slug === "portfolio-null-geometry-v1") ?? presets[0];
+  const orderedPresets = [...presets].sort((a, b) => {
+    const ai = presetOrder.indexOf(a.slug);
+    const bi = presetOrder.indexOf(b.slug);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  });
+
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
   const [workers, setWorkers] = useState<Worker[]>(initialWorkers);
   const [authorized, setAuthorized] = useState(initialAuthorized);
@@ -137,6 +198,7 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const selectedPreset = presets.find((p) => p.slug === presetSlug);
+  const selectedGuide = guides[presetSlug];
 
   useEffect(() => {
     const jobsChannel = supabase
@@ -249,19 +311,18 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
     }
   }
 
-  const onlineWorkers = workers.filter((worker) => Date.now() - new Date(worker.last_seen_at).getTime() < 5 * 60_000);
   const activeJobs = jobs.filter((job) => ["QUEUED", "CLAIMED", "RUNNING", "CANCELLING"].includes(job.status));
 
   return (
     <section className="section launch-section">
       <div className="section-head">
-        <div><div className="eyebrow">NUEVA PRUEBA</div><h2>Ejecutar una simulación</h2></div>
-        <div className="section-desc">Tres decisiones visibles. Seed, prioridad y JSON quedan en avanzado.</div>
+        <div><div className="eyebrow">NUEVA PRUEBA</div><h2>¿Qué pregunta querés responder?</h2></div>
+        <div className="section-desc">Elegí por la pregunta. Los nombres técnicos quedan sólo como referencia.</div>
       </div>
 
       <div className="card launch-card">
         <div className="launch-topbar">
-          <div className="compute-pill"><span className={onlineWorkers.length > 0 ? "compute-dot online" : "compute-dot"} /><strong>{onlineWorkers.length > 0 ? "Compute disponible" : "Compute sin worker reciente"}</strong><span>{activeJobs.length} activas</span></div>
+          <div className="compute-pill"><span className="compute-dot online" /><strong>{activeJobs.length > 0 ? "Compute ejecutando" : "Compute on-demand listo"}</strong><span>{activeJobs.length} activas</span></div>
           {!authorized ? (
             <div className="admin-inline">
               <input style={field} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Clave admin" onKeyDown={(e) => { if (e.key === "Enter") void login(); }} />
@@ -270,16 +331,36 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
           ) : <button style={smallButton} onClick={() => void logout()}>Bloquear ejecución</button>}
         </div>
 
-        <div className="launch-steps">
-          <div className="launch-step">
-            <div className="step-number">1</div>
-            <div className="step-body">
-              <label>¿Qué querés investigar?</label>
-              <select style={field} value={presetSlug} onChange={(e) => choosePreset(e.target.value)}>{presets.map((preset) => <option key={preset.slug} value={preset.slug}>{preset.name}</option>)}</select>
-              <p><strong>{purpose[selectedPreset?.category ?? ""] ?? "Experimento científico reproducible."}</strong><br />{selectedPreset?.description}</p>
+        <div className="question-step">
+          <div className="step-number">1</div>
+          <div className="step-body">
+            <label>Elegí la pregunta</label>
+            <div className="preset-choice-grid">
+              {orderedPresets.map((preset) => {
+                const guide = guides[preset.slug] ?? { title: preset.name, question: preset.description, useWhen: preset.description, returns: "Resultados reproducibles.", notFor: "—" };
+                const selected = preset.slug === presetSlug;
+                return (
+                  <button key={preset.slug} type="button" className={selected ? "preset-choice selected" : "preset-choice"} onClick={() => choosePreset(preset.slug)}>
+                    <div className="preset-choice-top"><span>{guide.recommended ? "RECOMENDADO AHORA" : "EXPERIMENTO"}</span>{selected && <b>✓</b>}</div>
+                    <strong>{guide.title}</strong>
+                    <em>{guide.question}</em>
+                    <small>{preset.name}</small>
+                  </button>
+                );
+              })}
             </div>
-          </div>
 
+            {selectedGuide && (
+              <div className="preset-explainer">
+                <div><span>Usalo cuando</span><strong>{selectedGuide.useWhen}</strong></div>
+                <div><span>Te devuelve</span><strong>{selectedGuide.returns}</strong></div>
+                <div><span>No sirve para</span><strong>{selectedGuide.notFor}</strong></div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="launch-steps compact-steps">
           <div className="launch-step">
             <div className="step-number">2</div>
             <div className="step-body">
@@ -291,7 +372,7 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
                   </button>
                 ))}
               </div>
-              <div className="scale-help">Seleccionado: <strong>{new Intl.NumberFormat("es-AR").format(Number(iterations || 0))}</strong> universos. Para comparar 4+ con seriedad, 10M es un buen punto de partida.</div>
+              <div className="scale-help">Seleccionado: <strong>{new Intl.NumberFormat("es-AR").format(Number(iterations || 0))}</strong> universos. {recommendedScale(presetSlug)}</div>
             </div>
           </div>
 
@@ -299,7 +380,7 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
             <div className="step-number">3</div>
             <div className="step-body">
               <label>Ejecutar</label>
-              <input style={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre opcional, ej. Geometría 10M V2" />
+              <input style={field} value={name} onChange={(e) => setName(e.target.value)} placeholder={`Nombre opcional · ${selectedGuide?.title ?? selectedPreset?.name ?? "simulación"}`} />
               <button disabled={!authorized || busy || !presetSlug} onClick={() => void launch()} className="launch-button">{busy ? "Procesando…" : authorized ? "▶ Ejecutar simulación" : "Desbloqueá para ejecutar"}</button>
               {message && <div className="launch-message">{message}</div>}
             </div>
@@ -307,7 +388,7 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
         </div>
 
         <details className="advanced-box" open={presetSlug === "portfolio-optimizer-v1"}>
-          <summary>Opciones avanzadas · seed, prioridad y configuración</summary>
+          <summary>Opciones avanzadas · seed, prioridad y configuración técnica</summary>
           <div className="advanced-grid">
             <label>Seed<input style={field} inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value.replace(/\D/g, ""))} /></label>
             <label>Prioridad 0–100<input style={field} inputMode="numeric" value={priority} onChange={(e) => setPriority(e.target.value.replace(/\D/g, ""))} /></label>
@@ -322,11 +403,12 @@ export function SimulationControl({ presets, initialJobs, initialWorkers, initia
           <table>
             <thead><tr><th>Simulación</th><th>Escala</th><th>Progreso</th><th>Estado</th><th>Acción</th></tr></thead>
             <tbody>
-              {jobs.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--muted)" }}>Todavía no hay jobs lanzados desde la app.</td></tr> : jobs.slice(0, 15).map((job) => {
+              {jobs.length === 0 ? <tr><td colSpan={5} style={{ color: "var(--muted)" }}>Todavía no hay simulaciones.</td></tr> : jobs.map((job) => {
                 const pct = percent(job);
+                const guide = job.preset_slug ? guides[job.preset_slug] : null;
                 return (
                   <tr key={job.id}>
-                    <td><strong>{job.preset_slug?.replaceAll("-v1", "").replaceAll("-", " ") ?? job.id.slice(0, 8)}</strong><div style={{ fontSize: 10, color: "var(--muted)" }}>#{job.id.slice(0, 8)} · {job.current_phase ?? "—"}</div></td>
+                    <td><strong>{guide?.title ?? job.preset_slug ?? job.id.slice(0, 8)}</strong><div style={{ fontSize: 10, color: "var(--muted)" }}>{job.id.slice(0, 8)} · intento {job.attempt}</div></td>
                     <td>{compact(job.requested_iterations)}</td>
                     <td style={{ minWidth: 180 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 5 }}><span>{compact(job.progress_iterations)} / {compact(job.requested_iterations)}</span><span>{pct.toFixed(1)}%</span></div>
