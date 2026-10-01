@@ -58,8 +58,16 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: object) -> None:
         print(json.dumps({"http": fmt % args}), flush=True)
 
+    def do_HEAD(self) -> None:
+        if self.path in ("/", "/health"):
+            self.send_response(200)
+            self.end_headers()
+            return
+        self.send_response(404)
+        self.end_headers()
+
     def do_GET(self) -> None:
-        if self.path == "/health":
+        if self.path in ("/", "/health"):
             self.send_json(200, {
                 "ok": True,
                 "configured": bool(DISPATCH_TOKEN and os.environ.get("SIM_WORKER_TOKEN")),
