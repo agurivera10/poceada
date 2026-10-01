@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -99,9 +98,8 @@ def simulate_selection_shadow(rng: np.random.Generator, iterations: int, batch_s
         rows = np.arange(n)[:, None]
         pool_hits = draw_presence[rows, pools].sum(axis=1)
         ticket_numbers = pools[:, K6_EDGE_15]
-        ticket_hits = np.take_along_axis(
-            draw_presence[:, None, :], ticket_numbers, axis=2
-        ).sum(axis=2)
+        ticket_rows = np.arange(n)[:, None, None]
+        ticket_hits = draw_presence[ticket_rows, ticket_numbers].sum(axis=2)
         max_hits = ticket_hits.max(axis=1)
         hist_update(pool_hist, pool_hits)
         hist_update(max_hist, max_hits)
