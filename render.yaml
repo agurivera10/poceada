@@ -1,9 +1,35 @@
 services:
+  - type: web
+    name: poceada-lab
+    runtime: node
+    repo: https://github.com/agurivera10/poceada.git
+    branch: main
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: https://oxjjmozpjbnawewdyuso.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_sLZPLOcYOBQgns1HO1LMZw_a32mK_5b
+      - key: SUPABASE_URL
+        value: https://oxjjmozpjbnawewdyuso.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: LAB_ADMIN_PASSWORD
+        sync: false
+      - key: LAB_SESSION_SECRET
+        generateValue: true
+      - key: SIMULATION_GIT_SHA
+        value: 977b43d3e1333c9f9cb3ff16aec88980a0985315
+
   - type: worker
     name: poceada-compute
     runtime: docker
     repo: https://github.com/agurivera10/poceada.git
     branch: main
+    plan: 0.5c-512mb
     dockerfilePath: ./simulations/Dockerfile
     dockerContext: .
     autoDeployTrigger: checksPass
@@ -11,7 +37,7 @@ services:
     maxShutdownDelaySeconds: 300
     envVars:
       - key: SUPABASE_URL
-        sync: false
+        value: https://oxjjmozpjbnawewdyuso.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: WORKER_ID
