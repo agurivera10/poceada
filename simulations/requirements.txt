@@ -1,2 +1,2 @@
 numpy==2.5.3
-render>=1.0.1,<2
+render==1.2.0
