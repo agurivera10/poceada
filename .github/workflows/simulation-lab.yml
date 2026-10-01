@@ -80,6 +80,21 @@ jobs:
           name: simulation-result-${{ github.run_id }}
           path: simulation-result.json
           retention-days: 90
+      - name: Sync to Supabase when repository secrets exist
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            python simulations/sync_result.py \
+              --result simulation-result.json \
+              --shards-dir shards \
+              --github-run-id "${{ github.run_id }}" \
+              --github-sha "${{ github.sha }}" \
+              --seed-base "${{ inputs.seed }}"
+          else
+            echo "Supabase sync skipped: repository secrets are not configured."
+          fi
       - name: Summary
         run: |
           echo "## Simulation Lab" >> "$GITHUB_STEP_SUMMARY"
